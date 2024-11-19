@@ -17,6 +17,8 @@ from PySide2.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PySide2.QtGui import QFont, QColor
 from smartcard.CardMonitoring import CardMonitor
 from NFCHandler import Lectura
+from despedida import VentanaDespedida
+from PySide2.QtWidgets import QMainWindow
 
 class CustomMessageDialog(QDialog):
     def __init__(self, parent=None):
@@ -306,7 +308,8 @@ class Ui_MainWindow3(QObject):
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
             }
         """)
-        self.salir.clicked.connect(MainWindow.close)  
+        self.MainWindow = MainWindow
+        self.salir.clicked.connect(self.mostrar_ventana_despedida)  
         
         self.actualizar = QPushButton(self.fondoBotones)
         self.actualizar.setObjectName(u"actualizar")
@@ -588,6 +591,11 @@ class Ui_MainWindow3(QObject):
     def ajustar_saldo(self, nuevo_texto):
         self.saldo.setText(nuevo_texto)
         self.update_timer.start(100) 
+
+    def mostrar_ventana_despedida(self):
+        self.ventana = VentanaDespedida()
+        self.ventana.show()
+        self.MainWindow.close()
 
     def actualizar_posiciones(self):
         texto_saldo = self.saldo.text()

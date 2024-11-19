@@ -8,6 +8,7 @@ from PySide2.QtGui import QPainter, QPixmap, QColor, QPen
 from PySide2.QtCore import QByteArray, Qt, QRectF
 from PySide2.QtWidgets import QGraphicsBlurEffect
 from PySide2.QtCore import QPropertyAnimation
+from qr import open_qr_payment
 import os
 import re
 
@@ -1129,6 +1130,7 @@ QPushButton:pressed, QPushButton:checked {
             }
         """)
         PagoTarjeta.setGeometry(410, 400, 250, 50)
+        PagoTarjeta.clicked.connect(lambda: open_qr_payment(self.obtener_monto_seleccionado()))
         #PagoTarjeta.clicked.connect(lambda: self.abrir_iframe(pago_dialog))
         
         card_svg = """

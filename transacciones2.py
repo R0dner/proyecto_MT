@@ -205,7 +205,7 @@ class Ui_MainWindow(object):
         self.saldo_ui.update_document(document)
         self.saldo_ui.update_profile(profile_name)
         self.saldo_ui.update_balance(balance)
-        self.saldo_ui.update_card_status(card_status)
+        self.saldo_ui.update_card_status(card_status)   
         self.saldo_window.show()
 
 class NFCReader(CardObserver, QObject):
@@ -291,7 +291,7 @@ class NFCReader(CardObserver, QObject):
             return None
 
 if __name__ == '__main__':
-    import sys
+    import sys  
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
