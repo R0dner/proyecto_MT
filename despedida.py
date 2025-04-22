@@ -39,7 +39,7 @@ class VentanaDespedida(QWidget):
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(20, 20, 20, 20)
         
-        self.mensaje = QLabel("¡Gracias por usar\nnuestro servicio!")
+        self.mensaje = QLabel("¡Gracias por usar \n nuestro servicio!")
         self.mensaje.setAlignment(Qt.AlignCenter)
         
         font = QFont("Segoe UI", 24, QFont.DemiBold)

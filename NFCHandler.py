@@ -128,6 +128,11 @@ class Lectura(CardObserver):
                     self.movements_data = None
                 self.data_ready.clear()
 
+    def reset_data_ready(self):
+        """Resetea el flag de datos listos para forzar una nueva lectura"""
+        self._data_ready = False
+        self._card_data = None
+
     def read_card(self):
         if self.cards:
             card = self.cards[0]

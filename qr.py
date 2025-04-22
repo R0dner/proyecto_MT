@@ -12,8 +12,7 @@ class QRDialog(QDialog):
         self.setWindowTitle("Solicitud de Recarga")
         self.setFixedSize(500, 650)
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
-        
-        # Habilitar movimiento de ventana
+
         self._drag_position = None
         
         self.setStyleSheet("""
@@ -22,8 +21,7 @@ class QRDialog(QDialog):
                 border-radius: 15px;
             }
         """)
-        
-        # Header con área de arrastre
+
         self.header = QLabel(self)
         self.header.setText("Escanea para Recargar")
         self.header.setGeometry(0, 0, 500, 50)
@@ -36,15 +34,13 @@ class QRDialog(QDialog):
         """)
         self.header.mousePressEvent = self.mousePressEvent
         self.header.mouseMoveEvent = self.mouseMoveEvent
-        
-        # QR
+
         qr_label = QLabel(self)
         qr_pixmap = QPixmap(self.generate_qr_data(payment_data))
         qr_label.setPixmap(qr_pixmap.scaled(350, 350, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         qr_label.setAlignment(Qt.AlignCenter)
         qr_label.setGeometry(75, 100, 350, 350)
-        
-        # Monto
+
         monto_label = QLabel(f"Monto: Bs. {payment_data}", self)
         monto_label.setGeometry(0, 470, 500, 50)
         monto_label.setStyleSheet("""
@@ -52,8 +48,7 @@ class QRDialog(QDialog):
             color: #34495E; 
             qproperty-alignment: AlignCenter;
         """)
-        
-        # Contador
+
         self.contador_label = QLabel(self)
         self.contador_label.setGeometry(0, 520, 500, 50)
         self.contador_label.setStyleSheet("""
@@ -61,14 +56,12 @@ class QRDialog(QDialog):
             color: #7F8C8D; 
             qproperty-alignment: AlignCenter;
         """)
-        
-        # Temporizador
+
         self.tiempo_restante = 20
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.actualizar_contador)
         self.timer.start(1000)
-        
-        # Botón de cancelar
+
         Cancelar = QPushButton("Cancelar", self)
         Cancelar.setFixedSize(200, 50)
         Cancelar.setStyleSheet("""

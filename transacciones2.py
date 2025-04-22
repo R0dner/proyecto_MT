@@ -29,7 +29,7 @@ class LoadingDialog(QDialog):
        
         self.background = QLabel(self)
         self.background.setStyleSheet("background-color: #f0f0f0; border-radius: 20px;")
-        self.background.setGeometry(0, 0, 500, 250)
+        self.background.setGeometry(0, 0, 500, 250) 
 
 
         self.gif_label = QLabel(self)
@@ -296,4 +296,4 @@ if __name__ == '__main__':
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
- 
+

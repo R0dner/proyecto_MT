@@ -310,6 +310,10 @@ class Ui_MainWindow3(QObject):
         """)
         self.MainWindow = MainWindow
         self.salir.clicked.connect(self.mostrar_ventana_despedida)  
+        self.MainWindow = MainWindow
+
+        self.salir.clicked.connect(self.mostrar_ventana_despedida) 
+        
         
         self.actualizar = QPushButton(self.fondoBotones)
         self.actualizar.setObjectName(u"actualizar")
@@ -588,6 +592,12 @@ class Ui_MainWindow3(QObject):
         QMetaObject.connectSlotsByName(MainWindow)
     # setupUi
 
+    def mostrar_ventana_despedida(self):
+        self.ventana = VentanaDespedida()
+        self.ventana.show()
+        # Usar la referencia guardada para cerrar la ventana principal
+        self.MainWindow.close()
+
     def ajustar_saldo(self, nuevo_texto):
         self.saldo.setText(nuevo_texto)
         self.update_timer.start(100) 
@@ -687,22 +697,80 @@ class Ui_MainWindow3(QObject):
         super().closeEvent(event)
         
     def refresh_window(self):
+        """Actualiza los datos de la tarjeta mostrados en la interfaz"""
+        try:
+            # Deshabilitar botón temporalmente para evitar múltiples clics
+            self.actualizar.setEnabled(False)
+            self.actualizar.setText("Actualizando...")
+            
+            # Obtener datos actuales de la tarjeta
+            if hasattr(self.lector_nfc, 'get_card_data'):
+                datos_tarjeta = self.lector_nfc.get_card_data()
+                
+                if datos_tarjeta:
+                    # Actualizar interfaz principal
+                    self.actualizar_interfaz(datos_tarjeta)
+                    
+                    # Actualizar otras ventanas si están abiertas
+                    if hasattr(self, 'ui_movimientos'):
+                        self.actualizar_etiquetas_movimientos()
+                    if hasattr(self, 'ui_recarga'):
+                        self.actualizar_etiquetas_recarga()
+                else:
+                    self.mostrar_mensaje_temporal("No se detectó la tarjeta", 2000)
+            else:
+                print("El lector NFC no tiene el método get_card_data")
+                
+        except Exception as e:
+            print(f"Error al actualizar: {e}")
+            self.mostrar_mensaje_temporal("Error al actualizar", 2000)
+        finally:
+            # Restaurar estado del botón
+            self.actualizar.setEnabled(True)
+            self.actualizar.setText("Actualizar Saldo")
 
-        current_uid = self.numeroTarjetaEdit.text().split(':')[-1].strip()
-        current_name = self.nombreUsuario.text()
+    def actualizar_interfaz(self, datos_tarjeta):
+        """Actualiza los elementos de la interfaz principal"""
+        # Actualizar nombre
+        nombre_completo = f"{datos_tarjeta.get('name', '')} {datos_tarjeta.get('last_name', '')}".strip()
+        self.editNombreUsuario.setText(nombre_completo)
+        
+        # Actualizar CI
+        self.CiEdit.setText(f" {datos_tarjeta.get('document', '')}")
+        
+        # Actualizar UID
+        self.numeroTarjetaEdit.setText(f"UID: {datos_tarjeta.get('uid', '')}")
+        
+        # Actualizar estado
+        self.estadoEdit.setText(f" {datos_tarjeta.get('card_status', '')}")
+        
+        # Actualizar saldo
+        self.saldo.setText(datos_tarjeta.get('balance', '0'))
+        self.ajustar_saldo(datos_tarjeta.get('balance', '0'))
+        
+        # Actualizar título
+        self.titulo.setText(datos_tarjeta.get('profile_name', ''))
+        
+        # Actualizar moneda
+        self.moneda.setText("Bs")
 
-        for i in reversed(range(self.fondoTarjeta.layout().count())): 
-            self.fondoTarjeta.layout().itemAt(i).widget().setParent(None)
-
-        self.setupUi(self.centralwidget.window())
-
-        self.update_uid(current_uid)
-        self.nombreUsuario.setText(current_name)
-
-        self.tarjetaCredito.timer.stop()
-        self.tarjetaCredito.current_index = 0
-        self.tarjetaCredito.show_image(0)
-        self.tarjetaCredito.timer.start()
+    def mostrar_mensaje_temporal(self, mensaje, duracion_ms):
+        """Muestra un mensaje flotante temporal"""
+        msg = QLabel(mensaje, self.centralwidget)
+        msg.setAlignment(Qt.AlignCenter)
+        msg.setStyleSheet("""
+            background-color: #2C3E50;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        """)
+        msg.setGeometry(QRect(400, 400, 400, 60))
+        msg.show()
+        
+        # Ocultar después de duracion_ms
+        QTimer.singleShot(duracion_ms, msg.deleteLater)
 
     def show_movi_message(self):
         self.movi_window = QMainWindow()
@@ -844,3 +912,4 @@ class Ui_MainWindow3(QObject):
         refresh_icon = QIcon(pixmap)
         self.actualizar.setIcon(refresh_icon)
         self.actualizar.setIconSize(QSize(40, 40))
+        
