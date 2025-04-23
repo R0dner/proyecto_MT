@@ -8,8 +8,10 @@ from smartcard.Exceptions import CardConnectionException
 import time
 import requests
 import os
+import vlc
 from segunda3 import Ui_MainWindow3  # type: ignore
 from API import ApiClient 
+import sys
 
 getuid = [0xFF, 0xCA, 0x00, 0x00, 0x00]
 
@@ -31,12 +33,11 @@ class LoadingDialog(QDialog):
         self.background.setStyleSheet("background-color: #f0f0f0; border-radius: 20px;")
         self.background.setGeometry(0, 0, 500, 250) 
 
-
         self.gif_label = QLabel(self)
         self.gif_label.setGeometry(195, 45, 175, 85)  
         
         project_dir = os.path.dirname(os.path.abspath(__file__))
-        gif_path = os.path.join(project_dir, "imagenes2", "loading.gif")
+        gif_path = os.path.join(project_dir, "recursoscarrusel", "loading.gif")
         
         self.movie = QMovie(gif_path)  
         self.gif_label.setMovie(self.movie)
@@ -86,25 +87,31 @@ class MainWindow(QMainWindow):
 
 class Ui_MainWindow(object):
     def __init__(self):
-        self.current_image_index = 0
+        self.current_video_index = 0
         
         project_dir = os.path.dirname(os.path.abspath(__file__))
-        image_dir = os.path.join(project_dir, "imagenes2")
+        video_dir = os.path.join(project_dir, "recursoscarrusel")
         
-        self.images = [
-            os.path.join(image_dir, "promo3.jpeg"),
-            os.path.join(image_dir, "promo2.jpeg"),
-            os.path.join(image_dir, "promo1.png")
+        self.videos = [
+            os.path.join(video_dir, "promov1.mp4"),
+            os.path.join(video_dir, "promov2.mp4"),
+            os.path.join(video_dir, "promov3.mp4")
         ]
+        
         self.nfc_reader = NFCReader()
         self.cardmonitor = CardMonitor()
         self.cardmonitor.addObserver(self.nfc_reader)
         self.nfc_reader.uid_detected.connect(self.show_loading_dialog)
         self.nfc_reader.card_error.connect(self.show_error_message)
+        
+        self.instance = None
+        self.media_player = None
+        self.video_frame = None
+        self.timer = None
+        self.saldo_window = None
 
     def show_error_message(self, message):
         error_dialog = QMessageBox()
-
         error_dialog.setIcon(QMessageBox.NoIcon)
        
         error_dialog.setStyleSheet("""
@@ -138,7 +145,6 @@ class Ui_MainWindow(object):
         """)
         formatted_message = message.replace("\n", "<br>")
         error_dialog.setText(formatted_message)
-        error_dialog.setText(message)
         error_dialog.setWindowTitle("Advertencia")
         error_dialog.setStandardButtons(QMessageBox.Ok)
         
@@ -159,34 +165,52 @@ class Ui_MainWindow(object):
         
         layout = QVBoxLayout(self.centralwidget)
         
-        self.fondoPrincipal = QLabel()  
-        layout.addWidget(self.fondoPrincipal)
+        self.video_frame = QFrame()
+        self.video_frame.setStyleSheet("background-color: black;")
+        layout.addWidget(self.video_frame)
         
-        self.load_background_image(self.images[0])
+        self.instance = vlc.Instance()
+        self.media_player = self.instance.media_player_new()
+        
+        if sys.platform.startswith('win'):
+            self.media_player.set_hwnd(int(self.video_frame.winId()))
+        elif sys.platform.startswith('linux'):
+            self.media_player.set_xwindow(self.video_frame.winId())
+        elif sys.platform.startswith('darwin'):
+            self.media_player.set_nsobject(int(self.video_frame.winId()))
+        
         self.timer = QTimer()
-        self.timer.timeout.connect(self.change_background_image)
-        self.timer.start(4000)
-
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.check_video_status)
+        self.timer.start()
+        self.timer.setSingleShot(False)
+        
+        self.play_video(self.videos[0])
+        
         self.retranslateUi(MainWindow)
-        
-        self.saldo_window = QMainWindow()
-        self.saldo_ui = Ui_MainWindow3()
-        self.saldo_ui.setupUi(self.saldo_window)
-        
-        self.saldo_window.resize(1280, 1024)
         
         QMetaObject.connectSlotsByName(MainWindow)
 
-    def load_background_image(self, image_path):
-        self.current_image = QImage(image_path)
-        if not self.current_image.isNull():
-            pixmap = QPixmap.fromImage(self.current_image)
-            self.fondoPrincipal.setPixmap(pixmap)  
-            self.fondoPrincipal.setScaledContents(True)  
+    def play_video(self, video_path):
+        if os.path.exists(video_path):
+            media = self.instance.media_new(video_path)
+            self.media_player.set_media(media)
+            self.media_player.play()
+            print(f"Reproduciendo video: {video_path}")
+        else:
+            print(f"Error: El archivo de video no existe: {video_path}")
+            self.play_next_video()
 
-    def change_background_image(self):
-        self.current_image_index = (self.current_image_index + 1) % len(self.images)
-        self.load_background_image(self.images[self.current_image_index])
+    def check_video_status(self):
+        state = self.media_player.get_state()
+        if state == vlc.State.Ended:
+            self.play_next_video()
+        elif state == vlc.State.Paused and (self.saldo_window is None or not self.saldo_window.isVisible()):
+            self.media_player.play()
+
+    def play_next_video(self):
+        self.current_video_index = (self.current_video_index + 1) % len(self.videos)
+        self.play_video(self.videos[self.current_video_index])
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
@@ -198,8 +222,17 @@ class Ui_MainWindow(object):
         QTimer.singleShot(3000, lambda: self.show_new_interface(uid, name, last_name, document, profile_name, balance, card_status))
         QTimer.singleShot(3000, self.loading_dialog.close)
 
-
     def show_new_interface(self, uid, name, last_name, document, profile_name, balance, card_status):
+        if self.media_player:
+            self.media_player.pause()
+            
+        self.saldo_window = QMainWindow()
+        self.saldo_ui = Ui_MainWindow3()
+        self.saldo_ui.setupUi(self.saldo_window)
+        self.saldo_window.resize(1280, 1024)
+        
+        self.saldo_window.destroyed.connect(self.resume_video)
+        
         self.saldo_ui.update_uid(uid)
         self.saldo_ui.update_name(name, last_name)  
         self.saldo_ui.update_document(document)
@@ -208,8 +241,14 @@ class Ui_MainWindow(object):
         self.saldo_ui.update_card_status(card_status)   
         self.saldo_window.show()
 
+    def resume_video(self):
+        if self.media_player:
+            self.media_player.play()
+            print("Reanudando reproducción de video...")
+        self.saldo_window = None
+
 class NFCReader(CardObserver, QObject):
-    uid_detected = Signal(str,str,str,str,str,str,str) 
+    uid_detected = Signal(str, str, str, str, str, str, str) 
     card_error = Signal(str)  
 
     def __init__(self):
@@ -291,9 +330,7 @@ class NFCReader(CardObserver, QObject):
             return None
 
 if __name__ == '__main__':
-    import sys  
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
-
