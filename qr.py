@@ -9,6 +9,7 @@ class QRDialog(QDialog):
     def __init__(self, payment_data, parent=None, segunda3=None):
         super().__init__(parent)
         self.segunda3 = segunda3
+        self.parent_widget = parent
         self.setWindowTitle("Solicitud de Recarga")
         self.setFixedSize(500, 650)
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
@@ -115,8 +116,10 @@ class QRDialog(QDialog):
             event.accept()
     
     def volver_segunda3(self):
-        if self.segunda3:
-            self.segunda3.show()
+        # Stop the timer
+        self.timer.stop()
+        
+        # Close the dialog (which will trigger the finished signal)
         self.close()
 
 def open_qr_payment(monto, segunda3=None):
