@@ -3,9 +3,7 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFrame, QGraphicsBlurEffect,
                                QPushButton, QLabel, QScrollArea, QWidget, QGridLayout)
-from PySide2.QtGui import QPixmap
 from PySide2.QtSvg import QSvgRenderer
-from PySide2.QtGui import QPainter
 from PySide2.QtCore import QByteArray
 import sys
 import threading
@@ -19,6 +17,8 @@ from smartcard.CardMonitoring import CardMonitor
 from NFCHandler import Lectura
 from despedida import VentanaDespedida
 from PySide2.QtWidgets import QMainWindow
+from PySide2.QtCore import QPropertyAnimation, QEasingCurve, QSequentialAnimationGroup
+from PySide2.QtGui import QPainter, QPixmap
 
 class CustomMessageDialog(QDialog):
     def __init__(self, parent=None):
@@ -104,6 +104,131 @@ class CustomMessageDialog(QDialog):
         renderer.render(painter)
         painter.end()
         return pixmap
+
+class CustomInfoDialog(QDialog):
+    def __init__(self, mensaje, icono='info', parent=None, auto_close=False, close_time=3000):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setModal(True)
+        self.auto_close = auto_close
+        self.close_time = close_time
+        self.setup_ui(mensaje, icono)
+
+    def setup_ui(self, mensaje, icono):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        self.content_frame = QFrame()
+        self.content_frame.setObjectName("contentFrame")
+        content_layout = QVBoxLayout(self.content_frame)
+        content_layout.setContentsMargins(30, 30, 30, 30)
+        content_layout.setSpacing(20)
+
+        # Configurar icono según el tipo
+        icono_label = QLabel()
+        icon_size = QSize(72, 72)
+        
+        if icono == 'error':
+            svg_content = '''
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#e74c3c" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            '''
+        else:  # info por defecto
+            svg_content = '''
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#3498db" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+            '''
+        
+        icono_label.setPixmap(self.render_svg(svg_content, icon_size))
+        icono_label.setAlignment(Qt.AlignCenter)
+
+        # Mensaje
+        mensaje_label = QLabel(mensaje)
+        mensaje_label.setAlignment(Qt.AlignCenter)
+        mensaje_label.setWordWrap(True)
+        mensaje_label.setStyleSheet("""
+            QLabel {
+                color: #34495e;
+                font-size: 22px;
+                font-weight: bold;
+                border: none;
+                padding: 0 10px;
+            }
+        """)
+
+        # Botón de cerrar
+        close_button = QPushButton("Aceptar")
+        close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2C3E50;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                font-size: 18px;
+                font-weight: bold;
+                border-radius: 25px;
+                min-width: 150px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2574a9;
+            }
+        """)
+        close_button.clicked.connect(self.close_with_animation)
+
+        content_layout.addWidget(icono_label, 0, Qt.AlignCenter)
+        content_layout.addWidget(mensaje_label, 0, Qt.AlignCenter)
+        content_layout.addWidget(close_button, 0, Qt.AlignCenter)
+
+        self.content_frame.setStyleSheet("""
+            QFrame#contentFrame {
+                background-color: white;
+                border-radius: 20px;
+                border: none;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            }
+        """)
+
+        layout.addWidget(self.content_frame)
+        self.setFixedSize(450, 350)
+
+    def render_svg(self, svg_content, size):
+        renderer = QSvgRenderer(svg_content.encode('utf-8'))
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        return pixmap
+
+    def showEvent(self, event):
+        # Animación de entrada
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(300)
+        self.animation.setStartValue(0)
+        self.animation.setEndValue(1)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.animation.start()
+        
+        # Configurar cierre automático si está activado
+        if self.auto_close:
+            QTimer.singleShot(self.close_time, self.close_with_animation)
+
+    def close_with_animation(self):
+        # Animación de salida
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(300)
+        self.animation.setStartValue(1)
+        self.animation.setEndValue(0)
+        self.animation.setEasingCurve(QEasingCurve.InCubic)
+        self.animation.finished.connect(self.close)
+        self.animation.start()
 
 class Ui_MainWindow3(QObject):
     
@@ -595,7 +720,6 @@ class Ui_MainWindow3(QObject):
     def mostrar_ventana_despedida(self):
         self.ventana = VentanaDespedida()
         self.ventana.show()
-        # Usar la referencia guardada para cerrar la ventana principal
         self.MainWindow.close()
 
     def ajustar_saldo(self, nuevo_texto):
@@ -622,13 +746,150 @@ class Ui_MainWindow3(QObject):
 
         self.saldo.setGeometry(QRect(int(new_x), int(new_y), int(new_width), int(new_height)))
 
+    def mostrar_mensaje_temporal(self, mensaje, duracion_ms, icono='info'):
+        """Muestra un mensaje flotante temporal con estilo moderno"""
+        # Crear el contenedor del mensaje
+        msg = QLabel(self.centralwidget)
+        msg.setObjectName("mensajeTemporal")
+        msg.setAlignment(Qt.AlignCenter)
+        
+        # Estilo según el tipo de icono
+        if icono == 'error':
+            color_fondo = "#e74c3c"  # Rojo
+            svg_icon = '''
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            '''
+        elif icono == 'info':
+            color_fondo = "#3498db"  # Azul
+            svg_icon = '''
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+            '''
+        else:
+            color_fondo = "#2C3E50"  # Color principal de la interfaz
+            svg_icon = ''
+        
+        # Configurar el estilo
+        msg.setStyleSheet(f"""
+            QLabel#mensajeTemporal {{
+                background-color: {color_fondo};
+                color: white;
+                padding: 20px;
+                border-radius: 15px;
+                font-family: 'Arial', sans-serif;
+                font-size: 18px;
+                font-weight: bold;
+                min-width: 300px;
+                border: none;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            }}
+        """)
+        
+        # Crear layout para el mensaje e icono
+        layout = QHBoxLayout(msg)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(15)
+        
+        # Añadir icono SVG si corresponde
+        if svg_icon:
+            icon_label = QLabel()
+            renderer = QSvgRenderer(QByteArray(svg_icon.encode('utf-8')))
+            pixmap = QPixmap(24, 24)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+            icon_label.setPixmap(pixmap)
+            layout.addWidget(icon_label)
+        
+        # Añadir texto del mensaje
+        text_label = QLabel(mensaje)
+        text_label.setStyleSheet("color: white; font-size: 18px;")
+        layout.addWidget(text_label)
+        
+        # Posicionar en el centro de la ventana
+        msg.adjustSize()
+        x_pos = (self.centralwidget.width() - msg.width()) // 2
+        y_pos = (self.centralwidget.height() - msg.height()) // 2
+        msg.move(x_pos, y_pos)
+        
+        # Animación de entrada
+        msg.setWindowOpacity(0)
+        msg.show()
+        
+        fade_in = QPropertyAnimation(msg, b"windowOpacity")
+        fade_in.setDuration(300)
+        fade_in.setStartValue(0)
+        fade_in.setEndValue(1)
+        fade_in.setEasingCurve(QEasingCurve.OutCubic)
+        
+        # Animación de salida después de la duración
+        fade_out = QPropertyAnimation(msg, b"windowOpacity")
+        fade_out.setDuration(300)
+        fade_out.setStartValue(1)
+        fade_out.setEndValue(0)
+        fade_out.setEasingCurve(QEasingCurve.InCubic)
+        
+        # Secuencia de animaciones
+        seq = QSequentialAnimationGroup()
+        seq.addAnimation(fade_in)
+        seq.addPause(duracion_ms)
+        seq.addAnimation(fade_out)
+        
+        # Eliminar el mensaje al finalizar
+        seq.finished.connect(msg.deleteLater)
+        seq.start()
+
     def mostrar_ventana_movimientos(self):
+        datos_tarjeta = self.lector_nfc.get_card_data()
+        if not datos_tarjeta:
+            # Aplicar blur al fondo
+            self.blur_effect.setBlurRadius(10)
+            
+            dialog = CustomInfoDialog("No se detectó la tarjeta", icono='error', parent=self.centralwidget)
+            dialog.finished.connect(lambda: self.blur_effect.setBlurRadius(0))
+            dialog.exec_()
+            return
+            
+        uid = datos_tarjeta.get('uid', '')
+            
+        # Verificar si hay movimientos antes de abrir la ventana
+        movimientos = self.lector_nfc.get_movements_from_api(uid)
+            
+        if not movimientos or len(movimientos) == 0:
+            # Aplicar blur al fondo
+            self.blur_effect.setBlurRadius(10)
+            
+            dialog = CustomInfoDialog("No tiene movimientos recientes", icono='info', parent=self.centralwidget)
+            dialog.finished.connect(lambda: self.blur_effect.setBlurRadius(0))
+            dialog.exec_()
+            return
+            
+        # Si hay movimientos, entonces abrir la ventana
         self.ventana_movimientos = QMainWindow()
         self.ui_movimientos = Ui_Movimientos()
         self.ui_movimientos.setupUi(self.ventana_movimientos)
         self.ventana_movimientos.show()
         self.actualizar_etiquetas_movimientos()
+
+    def mostrar_mensaje_temporal(self, mensaje, duracion_ms=3000, icono='info'):
+        """Muestra un mensaje flotante temporal con estilo moderno"""
+        # Aplicar blur al fondo
+        self.blur_effect.setBlurRadius(10)
         
+        dialog = CustomInfoDialog(
+            mensaje, 
+            icono=icono, 
+            parent=self.centralwidget,
+            auto_close=True,
+            close_time=duracion_ms
+        )
+        dialog.finished.connect(lambda: self.blur_effect.setBlurRadius(0))
+        dialog.exec_()
+
     def verificar_datos_tarjeta(self):
         while True:
             if self.lector_nfc.is_data_ready():
@@ -731,27 +992,14 @@ class Ui_MainWindow3(QObject):
 
     def actualizar_interfaz(self, datos_tarjeta):
         """Actualiza los elementos de la interfaz principal"""
-        # Actualizar nombre
         nombre_completo = f"{datos_tarjeta.get('name', '')} {datos_tarjeta.get('last_name', '')}".strip()
         self.editNombreUsuario.setText(nombre_completo)
-        
-        # Actualizar CI
         self.CiEdit.setText(f" {datos_tarjeta.get('document', '')}")
-        
-        # Actualizar UID
         self.numeroTarjetaEdit.setText(f"UID: {datos_tarjeta.get('uid', '')}")
-        
-        # Actualizar estado
         self.estadoEdit.setText(f" {datos_tarjeta.get('card_status', '')}")
-        
-        # Actualizar saldo
         self.saldo.setText(datos_tarjeta.get('balance', '0'))
         self.ajustar_saldo(datos_tarjeta.get('balance', '0'))
-        
-        # Actualizar título
         self.titulo.setText(datos_tarjeta.get('profile_name', ''))
-        
-        # Actualizar moneda
         self.moneda.setText("Bs")
 
     def mostrar_mensaje_temporal(self, mensaje, duracion_ms):
@@ -768,8 +1016,6 @@ class Ui_MainWindow3(QObject):
         """)
         msg.setGeometry(QRect(400, 400, 400, 60))
         msg.show()
-        
-        # Ocultar después de duracion_ms
         QTimer.singleShot(duracion_ms, msg.deleteLater)
 
     def show_movi_message(self):
@@ -811,7 +1057,7 @@ class Ui_MainWindow3(QObject):
         self.titulo.setText(QCoreApplication.translate("MainWindow", u" ", None))
         self.tituloSaldo.setText(QCoreApplication.translate("MainWindow", u" SALDO ACTUAL", None))
         self.tituloBotones.setText(QCoreApplication.translate("MainWindow", u" Opciones", None))
-        self.Umovimientos.setText(QCoreApplication.translate("MainWindow", u"  Historial de Movimientos", None))
+        self.Umovimientos.setText(QCoreApplication.translate("MainWindow", u"   Movimientos", None))
         self.RecargaCredito.setText(QCoreApplication.translate("MainWindow", u"  Recarga Credito", None))
         self.salir.setText(QCoreApplication.translate("MainWindow", u"  Salir", None))
         self.actualizar.setText(QCoreApplication.translate("MainWindow", u"  Actualizar Saldo", None))
