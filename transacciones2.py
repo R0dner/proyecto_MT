@@ -103,12 +103,26 @@ class Ui_MainWindow(object):
         self.cardmonitor.addObserver(self.nfc_reader)
         self.nfc_reader.uid_detected.connect(self.show_loading_dialog)
         self.nfc_reader.card_error.connect(self.show_error_message)
+        self.nfc_reader.card_removed.connect(self.handle_card_removal)
         
         self.instance = None
         self.media_player = None
         self.video_frame = None
         self.timer = None
         self.saldo_window = None
+
+    def handle_card_removal(self):
+            # Mostrar mensaje de que se retiró la tarjeta
+            self.show_error_message("Se ha retirado la tarjeta\nCerrando ventanas...")
+            
+            # Cerrar todas las ventanas excepto el carrusel
+            if hasattr(self, 'saldo_window') and self.saldo_window:
+                self.saldo_window.close()
+                self.saldo_window = None
+            
+            # Reanudar el video si estaba pausado
+            if self.media_player:
+                self.media_player.play()
 
     def show_error_message(self, message):
         error_dialog = QMessageBox()
@@ -249,7 +263,8 @@ class Ui_MainWindow(object):
 
 class NFCReader(CardObserver, QObject):
     uid_detected = Signal(str, str, str, str, str, str, str) 
-    card_error = Signal(str)  
+    card_error = Signal(str)
+    card_removed = Signal()  # Nueva señal para detectar cuando se quita la tarjeta
 
     def __init__(self):
         CardObserver.__init__(self)
@@ -274,6 +289,8 @@ class NFCReader(CardObserver, QObject):
             if card in self.cards:
                 self.cards.remove(card)
                 self.card_read = False
+                # Emitir señal cuando se quita la tarjeta
+                self.card_removed.emit()
 
     def read_uid(self, card):
         try:

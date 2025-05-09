@@ -8,15 +8,82 @@ from PySide2.QtGui import QPainter, QPixmap, QColor, QPen
 from PySide2.QtCore import QByteArray, Qt, QRectF
 from PySide2.QtWidgets import QGraphicsBlurEffect
 from PySide2.QtCore import QPropertyAnimation
-from qr import open_qr_payment,QRDialog
 import os
 import re
+from datos_qr import solicitar_recarga
+from nfc_monitor import NFCMonitorSingleton
 
-class Ui_Recarga(object):
+class Ui_Recarga(QObject):
     def __init__(self):
         super().__init__()
+        
+        # Usamos el monitor NFC centralizado
+        self.nfc_monitor = NFCMonitorSingleton.get_instance()
+        
+        # No creamos un nuevo observador, simplemente nos conectamos al existente
+        self.nfc_monitor.card_removed.connect(self.handle_card_removal)
+
+    def handle_card_removal(self):
+        # Mostrar mensaje de que se retiró la tarjeta
+        self.show_error_message("Se ha retirado la tarjeta\nCerrando ventana de recarga...")
+        
+        # El NFCMonitor se encargará de cerrar todas las ventanas registradas
+
+    def show_error_message(self, message):
+        error_dialog = QMessageBox()
+        error_dialog.setIcon(QMessageBox.NoIcon)
+        
+        error_dialog.setStyleSheet("""
+            QMessageBox {
+                background-color: #f0f0f0;
+                text-align: center;
+            }
+            QMessageBox QLabel {
+                color: #333333;
+                font-size: 24px;
+                font-weight: bold;
+                padding: 30px;
+                min-width: 400px;
+                max-width: 100px;
+                text-align: center;
+                qproperty-alignment: AlignCenter;
+            }
+            QMessageBox QPushButton {
+                background-color: #DC3545;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                font-size: 14px;
+                border-radius: 4px;
+                min-width: 40px;
+                text-align: center;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #C82333;
+            }
+        """)
+        formatted_message = message.replace("\n", "<br>")
+        error_dialog.setText(formatted_message)
+        error_dialog.setWindowTitle("Advertencia")
+        error_dialog.setStandardButtons(QMessageBox.Ok)
+        
+        error_dialog.setGeometry(350, 400, 300, 200)
+        error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        
+        # Cuando se cierra el diálogo, cerramos todas las ventanas registradas
+        error_dialog.accepted.connect(self.nfc_monitor.close_all_windows)
+        
+        error_dialog.exec_()
 
     def setupUi(self, MainWindow):
+        self.MainWindow = MainWindow
+        
+        # Registrar esta ventana con el monitor NFC
+        self.nfc_monitor = NFCMonitorSingleton.get_instance()
+        
+        # Cuando se cierre la ventana, desregistrarla del monitor
+        MainWindow.destroyed.connect(lambda: self.nfc_monitor.unregister_window(MainWindow))
+        
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
         MainWindow.resize(1280, 1024)
@@ -1029,17 +1096,18 @@ QPushButton:pressed, QPushButton:checked {
         self.RazonSocialEdit.setText(f"{datos_tarjeta['social_reason']}")
         self.monedaSaldo.setText("Bs")
 
-    def show_confirmation_dialog(self, uid, numero_ci, razon_social, monto):
+    def show_confirmation_dialog(self, uid, numero_ci, razon_social, monto, correo, complemento=""):
         self.apply_blur_effect(self.centralwidget)
         pago_dialog = QDialog(self.centralwidget)
         pago_dialog.setFixedSize(750, 500)
         pago_dialog.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
 
         pago_dialog.setStyleSheet("""
-            QDialog {
-                border: 2px solid #2C3E50;
-                border-radius: 10px;
-            }
+        QDialog {
+            background-color: #F5F5F5;
+            border-radius: 10px;
+            border: 1px solid #CFD8DC;
+        }
         """)
 
         header = QLabel(pago_dialog)
@@ -1051,7 +1119,7 @@ QPushButton:pressed, QPushButton:checked {
         title.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")
         title.setAlignment(Qt.AlignCenter)
 
-        message = QLabel("Se esta solicitando una nueva recarga \n Verifique si los datos estan correctos :", pago_dialog)
+        message = QLabel("Se está solicitando una nueva recarga \n Verifique si los datos están correctos:", pago_dialog)
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignCenter)
         message.setStyleSheet("font-size: 22px; color: #2C3E50;")
@@ -1061,12 +1129,12 @@ QPushButton:pressed, QPushButton:checked {
         self.tarjeta.setObjectName(u"tarjeta")
         self.tarjeta.setGeometry(100, 170, 550, 200)
         self.tarjeta.setStyleSheet("""
-            QWidget#tarjeta {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                            stop:0 #2C3E50, stop:1 #34495e);
-                border-radius: 15px;
-                color: white;
-            }
+        QWidget#tarjeta {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                    stop:0 #2C3E50, stop:1 #34495e);
+            border-radius: 15px;
+            color: white;
+        }
         """)
         
         uid_label = QLabel(f" {uid}", self.tarjeta)
@@ -1078,12 +1146,12 @@ QPushButton:pressed, QPushButton:checked {
         monto_label.setStyleSheet("color: white; font-size: 21px;")
 
         uid_label.setGeometry(QRect(140, 130, 300, 40))
-        datosFactura_label.setGeometry(QRect(50, 60, 200, 30))
+        datosFactura_label.setGeometry(QRect(50, 60, 400, 30))
         monto_label.setGeometry(QRect(345, 60, 70, 30))
 
-        QLabel("Numero de Tarjeta :", self.tarjeta).setGeometry(QRect(200, 110, 150, 20))
-        QLabel("Datos de Factura :", self.tarjeta).setGeometry(QRect(90, 40, 150, 20))
-        QLabel("Monto de Recarga :", self.tarjeta).setGeometry(QRect(310, 40, 150, 20))
+        QLabel("Número de Tarjeta:", self.tarjeta).setGeometry(QRect(200, 110, 150, 20))
+        QLabel("Datos de Factura:", self.tarjeta).setGeometry(QRect(90, 40, 150, 20))
+        QLabel("Monto de Recarga:", self.tarjeta).setGeometry(QRect(310, 40, 150, 20))
 
         for label in self.tarjeta.findChildren(QLabel)[3:]:
             label.setStyleSheet("color: white; font-size: 18px;")
@@ -1091,17 +1159,16 @@ QPushButton:pressed, QPushButton:checked {
         Cancelar = QPushButton("  Cancelar", pago_dialog)
         Cancelar.setFixedSize(200, 50)
         Cancelar.setStyleSheet("""
-            QPushButton {
-                background-color: #C21807;
-                color: white;
-                border: none;
-                border-radius: 25px;
-                font-size: 18px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #C0392B;
-            }
+        QPushButton {
+            background-color: #E74C3C;
+            color: white;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #C0392B;
+        }
         """)
         Cancelar.setGeometry(105, 400, 250, 50)
         Cancelar.clicked.connect(lambda: self.close_dialog_and_remove_blur(pago_dialog))
@@ -1111,27 +1178,29 @@ QPushButton:pressed, QPushButton:checked {
             <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
             <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
             <g id="SVGRepo_iconCarrier"><path d="M704 288h-281.6l177.6-202.88a32 32 0 0 0-48.32-42.24l-224 256a30.08 30.08 0 0 0-2.24 3.84 32 32 0 0 0-2.88 4.16v1.92a32 32 0 0 0 0 5.12A32 32 0 0 0 320 320a32 32 0 0 0 0 4.8 32 32 0 0 0 0 5.12v1.92a32 32 0 0 0 2.88 4.16 30.08 30.08 0 0 0 2.24 3.84l224 256a32 32 0 1 0 48.32-42.24L422.4 352H704a224 224 0 0 1 224 224v128a224 224 0 0 1-224 224H320a232 232 0 0 1-28.16-1.6 32 32 0 0 0-35.84 27.84 32 32 0 0 0 27.84 35.52A295.04 295.04 0 0 0 320 992h384a288 288 0 0 0 288-288v-128a288 288 0 0 0-288-288zM103.04 760a32 32 0 0 0-62.08 16A289.92 289.92 0 0 0 140.16 928a32 32 0 0 0 40-49.92 225.6 225.6 0 0 1-77.12-118.08zM64 672a32 32 0 0 0 22.72-9.28 37.12 37.12 0 0 0 6.72-10.56A32 32 0 0 0 96 640a33.6 33.6 0 0 0-9.28-22.72 32 32 0 0 0-10.56-6.72 32 32 0 0 0-34.88 6.72A32 32 0 0 0 32 640a32 32 0 0 0 2.56 12.16 37.12 37.12 0 0 0 6.72 10.56A32 32 0 0 0 64 672z" fill="#ffffff"></path></g>
-        </svg>"""
+        </svg>
+        """
         self.add_svg_icon(Cancelar, cancel_svg)
         
         PagoTarjeta = QPushButton("Solicitar Recarga", pago_dialog)
         PagoTarjeta.setFixedSize(250, 50)
         PagoTarjeta.setStyleSheet("""
-            QPushButton {
-                background-color: #008000;
-                color: white;
-                border: none;
-                border-radius: 25px;
-                font-size: 18px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #007300;
-            }
+        QPushButton {
+            background-color: #27AE60;
+            color: white;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #2ECC71;
+        }
         """)
         PagoTarjeta.setGeometry(410, 400, 250, 50)
-        PagoTarjeta.clicked.connect(lambda: self.abrir_qr_con_blur(pago_dialog, monto))
-        #PagoTarjeta.clicked.connect(lambda: self.abrir_iframe(pago_dialog))
+        
+        PagoTarjeta.clicked.connect(lambda: self.procesar_recarga(
+            pago_dialog, uid, numero_ci, razon_social, complemento, correo, monto
+        ))
         
         card_svg = """
         <svg fill="#f8f1f1" viewBox="0 0 512 512" enable-background="new 0 0 512 512" id="Credit_x5F_card" version="1.1" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke="#f8f1f1">
@@ -1140,10 +1209,28 @@ QPushButton:pressed, QPushButton:checked {
             <g id="SVGRepo_iconCarrier"> <g> <path d="M127.633,215.98h215.568c29.315,0,53.166,23.851,53.166,53.166v14.873h38.061c22.735,0,41.166-18.432,41.166-41.167 v-69.608H127.633V215.98z"></path> 
             <path d="M434.428,74.2H168.799c-22.735,0-41.166,18.431-41.166,41.166v17.479h347.961v-17.479 C475.594,92.631,457.163,74.2,434.428,74.2z"></path> 
             <path d="M343.201,227.98H77.572c-22.735,0-41.166,18.431-41.166,41.166v127.487c0,22.735,18.431,41.166,41.166,41.166h265.629 c22.736,0,41.166-18.431,41.166-41.166V269.146C384.367,246.412,365.938,227.98,343.201,227.98z M131.542,329.846 c0,4.92-3.989,8.909-8.909,8.909H75.289c-4.92,0-8.908-3.989-8.908-8.909v-29.098c0-4.921,3.988-8.909,8.908-8.909h47.344 c4.92,0,8.909,3.988,8.909,8.909V329.846z M300.961,413.039c-10.796,0-19.548-8.752-19.548-19.549s8.752-19.549,19.548-19.549 c10.797,0,19.549,8.752,19.549,19.549S311.758,413.039,300.961,413.039z M345.271,413.039c-10.797,0-19.549-8.752-19.549-19.549 s8.752-19.549,19.549-19.549c10.796,0,19.548,8.752,19.548,19.549S356.067,413.039,345.271,413.039z"></path> </g> </g>
-        </svg>"""
+        </svg>
+        """
         self.add_svg_icon(PagoTarjeta, card_svg)
 
         pago_dialog.exec_()
+
+    def procesar_recarga(self, dialog, uid, numero_ci, razon_social, complemento, correo, monto):
+        dialog.close()
+        self.apply_blur_effect(self.centralwidget)
+
+        result = solicitar_recarga(
+            uid, 
+            numero_ci, 
+            razon_social, 
+            complemento, 
+            correo, 
+            monto, 
+            self.centralwidget
+        )
+        self.remove_blur_effect(self.centralwidget)
+        
+        return result
 
     def handle_recarga_ok(self):
         monto = self.obtener_monto_seleccionado()
@@ -1159,7 +1246,9 @@ QPushButton:pressed, QPushButton:checked {
             uid = self.uid.text()
             numero_ci = self.NumeroCiEdit.toPlainText()
             razon_social = self.RazonSocialEdit.toPlainText()
-            self.show_confirmation_dialog(uid, numero_ci, razon_social, monto)
+            complemento = self.ComplementoEdit.toPlainText() if hasattr(self, 'ComplementoEdit') else ""
+            
+            self.show_confirmation_dialog(uid, numero_ci, razon_social, monto, correo, complemento)
 
     def es_correo_valido(self, correo):
         patron = r'^[\w\.-]+@[\w\.-]+\.\w+$'
