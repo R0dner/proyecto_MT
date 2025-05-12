@@ -4,9 +4,9 @@
         "error": 0,
         "existente": 0,
         "mensaje": "Deuda registrada con \u00e9xito. Para completar el pago, debe redireccionar al cliente a la pasarela de pagos.",
-        "codigo_recaudacion": "76008769888",
-        "id_transaccion": "c1c07748-e3a0-4b50-be3a-4852f11fc295",
-        "qr_simple_url": "https://pagos.libelula.bo/QrImages/6cb8e116916349868a2eb19001f531311c474935d2df4e0f9966aeed23842c4a.png",
-        "url_pasarela_pagos": "https://pagos.libelula.bo/?id=19cfe96e-18e1-457d-8ba8-532d9c236d28"
+        "codigo_recaudacion": "76508793432",
+        "id_transaccion": "a958d03d-1a47-40d3-be1a-76ac8ec79ffc",
+        "qr_simple_url": "https://pagos.libelula.bo/QrImages/89d9f6d4e1b4484888adc69248529986c6ec2bb0c187457aad1ea5e3978add94.png",
+        "url_pasarela_pagos": "https://pagos.libelula.bo/?id=97a72787-afa4-4afd-92d7-9e0bc1e126c9"
     }
 }

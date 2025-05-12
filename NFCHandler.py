@@ -185,14 +185,14 @@ class Lectura(CardObserver):
                 
                 processed_data = {
                     "uid": uid,
-                    "name": person.get("name", "Nombre no disponible"),
-                    "last_name": person.get("last_name", "Apellido no disponible"),
-                    "document": person.get("document", "Documento no disponible"),
-                    "profile_name": profile.get("name", "Perfil no disponible"),
-                    "balance": card_state.get("balance", "Saldo no disponible"),
-                    "card_status": definir_estado(card.get("status", "Estado de tarjeta no disponible")),
-                    "social_reason": person.get("social_reason", "razon social no disponible"),
-                    "nit": person.get("nit", "NIT no disponible"),
+                    "name": person.get("name", "No disponible"),
+                    "last_name": person.get("last_name", "No disponible"),
+                    "document": person.get("document", "No disponible"),
+                    "profile_name": profile.get("name", "No disponible"),
+                    "balance": card_state.get("balance", "No disponible"),
+                    "card_status": definir_estado(card.get("status", "No disponible")),
+                    "social_reason": person.get("social_reason", "No disponible"),
+                    "nit": person.get("nit", "No disponible"),
                 }
                 
                 print("\nDatos procesados para la interfaz:")

@@ -1,8 +1,11 @@
 {
-    "uid": "9002AA6E8933A9",
-    "documento": "8402656",
-    "razon_social": "Cespedes",
-    "complemento": "",
-    "monto": "5",
-    "timestamp": 1746820264
+    "monto": 20.0,
+    "uid": "04F55D42833F80",
+    "first_name": "Prueba",
+    "last_name": "sistemas",
+    "document": "0001",
+    "email": "asdas@asdas.asda",
+    "nit": "0",
+    "razon_social": "SN",
+    "timestamp": 1747081848
 }

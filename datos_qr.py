@@ -10,6 +10,13 @@ import io
 import time
 import os
 
+# Importamos las clases necesarias del archivo NFCHandler.py
+from smartcard.Card import Card
+from smartcard.CardMonitoring import CardMonitor, CardObserver
+from smartcard.util import toHexString
+from smartcard.Exceptions import CardConnectionException
+import threading
+
 # Función para convertir imagen PIL a QImage para PySide2
 def pil_to_qimage(pil_image):
     buffer = io.BytesIO()
@@ -35,34 +42,202 @@ def download_image_from_url(url):
         print(f"Error al descargar imagen: {e}")
         return None
 
+# Importamos la clase Lectura del segundo archivo (NFCHandler.py)
+class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el método update
+    def __init__(self, tabla_movimientos=None):
+        super().__init__()  # Importante llamar al constructor de la clase padre
+        self.cards = []
+        self.card_read = False
+        self.uid = None
+        self.last_read_time = None
+        self.card_data = None
+        self.movements_data = None
+        self.data_ready = threading.Event()
+        self.lock = threading.Lock()
+        self.tabla_movimientos = tabla_movimientos
+    
+    def update(self, observable, actions):
+        """Método requerido por CardObserver que se llama cuando hay cambios en las tarjetas"""
+        (addedcards, removedcards) = actions
+        for card in addedcards:
+            if card not in self.cards:
+                self.cards.append(card)
+                if not self.card_read:
+                    self.card_read = True
+                    self.last_read_time = time.time()
+                    self.read_card()
+
+        for card in removedcards:
+            if card in self.cards:
+                self.cards.remove(card)
+                self.card_read = False
+                with self.lock:
+                    self.card_data = None
+                    self.movements_data = None
+                self.data_ready.clear()
+
+    def read_card(self):
+        """Lee los datos de la tarjeta NFC cuando se detecta"""
+        if self.cards:
+            card = self.cards[0]
+            try:
+                connection = card.createConnection()
+                connection.connect()
+                time.sleep(0.5)
+                # Comando para obtener el UID de la tarjeta
+                getuid = [0xFF, 0xCA, 0x00, 0x00, 0x00]
+                response, sw1, sw2 = connection.transmit(getuid)
+                self.uid = toHexString(response).replace(" ", "").upper()
+                new_data = self.get_data_from_api(self.uid)
+                with self.lock:
+                    self.card_data = new_data
+                self.data_ready.set()
+            except Exception as e:
+                print(f"Error al leer tarjeta: {e}")
+                with self.lock:
+                    self.card_data = None
+                self.data_ready.clear()
+
+    def get_data_from_api(self, uid):
+        """Obtiene los datos de la tarjeta desde la API"""
+        url = "https://cmisocket.miteleferico.bo/api/v1/billetaje/info-card"
+        try:
+            response = requests.post(url, json={"card_uid": uid})
+            data = response.json()
+            
+            if data.get("success"):
+                card = data.get("card", {})
+                card_state = data.get("cardState", {})
+                profile = data.get("profile", {})
+                person = data.get("person", {})
+                
+                processed_data = {
+                    "uid": uid,
+                    "first_name": person.get("name", "No disponible"),
+                    "last_name": person.get("last_name", "No disponible"),
+                    "document": person.get("document", "No disponible"),
+                    "profile_name": profile.get("name", "No disponible"),
+                    "balance": card_state.get("balance", "No disponible"),
+                    "card_status": self.definir_estado(card.get("status", "No disponible")),
+                    "social_reason": person.get("social_reason", "No disponible"),
+                    "nit": person.get("nit", "No disponible"),
+                }
+                return processed_data
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"Error al obtener datos de tarjeta: {e}")
+            return None
+
+    def get_card_data(self, timeout=None):
+        """Devuelve los datos de la tarjeta si están disponibles"""
+        if self.data_ready.wait(timeout):
+            with self.lock:
+                return self.card_data
+        return None
+
+    def is_data_ready(self):
+        """Comprueba si los datos de la tarjeta están listos"""
+        return self.data_ready.is_set()
+
+    def definir_estado(self, estado):
+        if estado.lower() == 'a':
+            return "ACTIVA"
+        elif estado.lower() == 'l':
+            return "BLOQUEADO"
+        elif estado.lower() == 'b':
+            return "INACTIVA"
+        else:
+            return "Estado desconocido"
+
 class QRDatosManager:
     def __init__(self):
-        # URL base para la API
+        # URL base para la API - Nueva dirección sin requerir token
         self.base_url = "https://serviciosvirtual-test.miteleferico.bo"
-        self.api_url = f"{self.base_url}/api/v1/payment/registrar-deuda-mobile"
+        self.api_url = f"{self.base_url}/api/v1/payment/register-payment-external"
         self.datos_recarga = {}
         self.qr_url = None
         self.correo_temporal = None  # Para almacenar el correo temporalmente sin guardarlo
         self.api_response = None  # Para almacenar la respuesta completa de la API
-        # Token de autenticación - Puedes establecerlo aquí o a través de un método
-        self.auth_token = None
+        
+        # Creamos una instancia del lector NFC pero sin integrarla con el monitor
+        # para evitar errores si no hay lector conectado
+        self.nfc_reader = Lectura()
+        self.cardmonitor = None  # Lo inicializaremos solo si es necesario
+        
+        try:
+            # Solo inicializamos el monitor de tarjetas si realmente lo necesitamos
+            self.inicializar_monitor_tarjetas()
+        except Exception as e:
+            print(f"Advertencia: No se pudo inicializar el monitor de tarjetas: {e}")
+            # Seguimos adelante sin el monitor de tarjetas
     
-    def set_auth_token(self, token):
-        """Establece el token de autenticación para las solicitudes API"""
-        self.auth_token = token
-        return True
+    def inicializar_monitor_tarjetas(self):
+        """Inicializa el monitor de tarjetas solo si es necesario"""
+        try:
+            self.cardmonitor = CardMonitor()
+            self.cardmonitor.addObserver(self.nfc_reader)
+            print("Monitor de tarjetas NFC inicializado correctamente")
+        except Exception as e:
+            print(f"Error al inicializar monitor de tarjetas: {e}")
+            self.cardmonitor = None
+    
+    def __del__(self):
+        # Limpiamos el monitor de tarjetas si existe
+        try:
+            if self.cardmonitor:
+                self.cardmonitor.deleteObserver(self.nfc_reader)
+        except:
+            pass
     
     def recopilar_datos(self, uid, documento, razon_social, complemento, correo, monto):
+        """Recopila los datos combinando la información de la tarjeta NFC y los datos del formulario"""
         self.correo_temporal = correo
         
-        self.datos_recarga = {
-            "uid": uid.replace("UID: ", ""),  
-            "documento": documento,
-            "razon_social": razon_social,
-            "complemento": complemento,
-            "monto": monto,
-            "timestamp": int(time.time())
-        }
+        # Primero intentamos obtener datos de la tarjeta NFC si está disponible
+        card_data = None
+        uid_clean = uid.replace("UID: ", "") if uid.startswith("UID: ") else uid
+        
+        # Si tenemos un lector activo y datos disponibles, los usamos
+        if self.nfc_reader.is_data_ready():
+            card_data = self.nfc_reader.get_card_data()
+        
+        # Si no tenemos datos del reader, intentamos obtenerlos mediante la API directamente
+        if not card_data and uid_clean:
+            card_data = self.nfc_reader.get_data_from_api(uid_clean)
+        
+        # Si tenemos datos de la tarjeta, los combinamos con los del formulario
+        if card_data:
+            self.datos_recarga = {
+                "monto": float(monto) if monto else 0,
+                "uid": card_data.get("uid", uid_clean),
+                "first_name": card_data.get("first_name", ""),
+                "last_name": card_data.get("last_name", ""),
+                "document": card_data.get("document", documento),
+                "email": correo,
+                "nit": card_data.get("nit", documento),
+                "razon_social": card_data.get("social_reason", razon_social),
+                "timestamp": int(time.time())
+            }
+        else:
+            # Si no hay datos de la tarjeta, usamos solo los del formulario
+            self.datos_recarga = {
+                "monto": float(monto) if monto else 0,
+                "uid": uid_clean,
+                "first_name": "",  # Vacío porque no tenemos este dato
+                "last_name": "",   # Vacío porque no tenemos este dato
+                "document": documento,
+                "email": correo,
+                "nit": documento,
+                "razon_social": razon_social,
+                "timestamp": int(time.time())
+            }
+            
+        # Depuración: imprimir datos recopilados
+        print("Datos recopilados para la recarga:")
+        for key, value in self.datos_recarga.items():
+            print(f"  {key}: {value}")
         
         # Guardar localmente en un archivo JSON para utilizarlo en la solicitud
         with open("ultima_recarga.json", "w") as f:
@@ -85,28 +260,29 @@ class QRDatosManager:
             return False
     
     def enviar_solicitud(self):
-        """Envía los datos guardados en 'ultima_recarga.json' a la API y espera la URL del QR como respuesta"""
+        """Envía los datos guardados en 'ultima_recarga.json' a la nueva API y espera la URL del QR como respuesta"""
         try:
             # Cargar los datos del archivo JSON
             if not self.cargar_datos_recarga():
                 return False, "No se pudieron cargar los datos de recarga"
 
-            # Verificar que el token esté configurado
-            if not self.auth_token:
-                return False, "Token de autenticación no configurado"
-
-            # Construir el payload usando los campos requeridos por la API
+            # Construir el payload usando el nuevo formato requerido
+            # No enviamos el timestamp al API ya que no lo requiere
             datos_para_api = {
-                "monto": self.datos_recarga.get("monto", ""),
-                "nit": self.datos_recarga.get("documento", ""),
-                "razon_social": self.datos_recarga.get("razon_social", ""),
-                "uid": self.datos_recarga.get("uid", "")
+                "monto": self.datos_recarga.get("monto", 0),
+                "uid": self.datos_recarga.get("uid", ""),
+                "first_name": self.datos_recarga.get("first_name", ""),
+                "last_name": self.datos_recarga.get("last_name", ""),
+                "document": self.datos_recarga.get("document", ""),
+                "email": self.datos_recarga.get("email", ""),
+                "nit": self.datos_recarga.get("nit", ""),
+                "razon_social": self.datos_recarga.get("razon_social", "")
             }
 
-            # Incluir el token en los headers
+            # Headers para la solicitud
             headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.auth_token}"  # Añadir token en formato Bearer
+                "Content-Type": "application/json"
+                # Ya no necesitamos token de autenticación
             }
             
             respuesta = requests.post(self.api_url, json=datos_para_api, headers=headers)
@@ -114,10 +290,11 @@ class QRDatosManager:
             if respuesta.status_code == 200:
                 self.api_response = respuesta.json()
                 
-                # Verificar si la respuesta tiene el formato esperado
+        # Verificar si la respuesta tiene el formato esperado
                 if self.api_response.get("success") and "data" in self.api_response:
                     data = self.api_response["data"]
-                    self.qr_url = data.get("qr_simple_url", "")
+                    # Adaptar según la estructura real de la respuesta del nuevo API
+                    self.qr_url = data.get("qr_url", data.get("qr_simple_url", ""))
                     
                     # Guardar la respuesta completa para uso posterior
                     with open("ultima_respuesta_api.json", "w") as f:
@@ -134,15 +311,17 @@ class QRDatosManager:
             return False, str(e)
     
     def generar_qr_basado_en_respuesta(self):
-        """Descarga y muestra la imagen QR desde qr_simple_url en lugar de generar un nuevo QR"""
+        """Descarga y muestra la imagen QR desde qr_url en lugar de generar un nuevo QR"""
         try:
             if self.qr_url and self.api_response and "data" in self.api_response:
                 # Usar directamente la URL del QR proporcionada por la API
-                qr_simple_url = self.api_response["data"].get("qr_simple_url", "")
+                qr_url = self.api_response["data"].get("qr_url", self.api_response["data"].get("qr_simple_url", ""))
                 
-                if qr_simple_url:
+                print(f"URL del QR a descargar: {qr_url}")
+                
+                if qr_url:
                     # Descargar la imagen QR desde la URL
-                    qr_image = download_image_from_url(qr_simple_url)
+                    qr_image = download_image_from_url(qr_url)
                     if qr_image:
                         return qr_image, self.api_response["data"]
                     else:
@@ -299,8 +478,8 @@ class QRRechargeDialog(QDialog):
                     self.status_label.setText(f"Monto: Bs. {self.datos_manager.datos_recarga['monto']}")
                     
                     # Mostrar información adicional como código de recaudación
-                    info_text = f"Código de recaudación: {api_data.get('codigo_recaudacion', 'N/A')}\n"
-                    info_text += f"ID Transacción: {api_data.get('id_transaccion', 'N/A')}"
+                    info_text = f"Código de transacción: {api_data.get('id_transaccion', 'N/A')}\n"
+                    info_text += f"ID Recaudación: {api_data.get('codigo_recaudacion', 'N/A')}"
                     self.info_label.setText(info_text)
             else:
                 # Si falló la generación del QR basado en la respuesta, usamos el temporal
@@ -312,64 +491,53 @@ class QRRechargeDialog(QDialog):
                     self.status_label.setText("Error al generar el código QR")
 
 
-def solicitar_recarga(uid="", documento="", razon_social="", complemento="", correo="", monto="", auth_token="", parent_widget=None):
-    """Función principal para iniciar el proceso de recarga"""
+def solicitar_recarga(uid="", documento="", razon_social="", complemento="", correo="", monto="", parent_widget=None):
+    """Función principal para iniciar el proceso de recarga - Ya no requiere auth_token"""
     # Crear instancia del gestor de datos
-    datos_manager = QRDatosManager()
-    
-    # Configurar el token de autenticación
-    if auth_token:
-        datos_manager.set_auth_token(auth_token)
-    else:
-        QMessageBox.warning(
-            parent_widget,
-            "Advertencia",
-            "No se ha proporcionado un token de autenticación",
-            QMessageBox.Ok
-        )
-        return False
-    
-    # Verificar si tenemos datos proporcionados o debemos cargar desde el archivo
-    if uid and documento and razon_social and monto:
-        # Recopilar datos y guardarlos en 'ultima_recarga.json'
-        datos_manager.recopilar_datos(uid, documento, razon_social, complemento, correo, monto)
-    else:
-        # Cargar datos del archivo JSON
-        if not datos_manager.cargar_datos_recarga():
+    try:
+        datos_manager = QRDatosManager()
+        
+        # Verificar si tenemos datos proporcionados o debemos cargar desde el archivo
+        if uid and documento and monto:
+            # Recopilar datos y guardarlos en 'ultima_recarga.json'
+            datos_manager.recopilar_datos(uid, documento, razon_social, complemento, correo, monto)
+        else:
+            # Cargar datos del archivo JSON
+            if not datos_manager.cargar_datos_recarga():
+                QMessageBox.critical(
+                    parent_widget,
+                    "Error de Carga",
+                    "No se pudieron cargar los datos de recarga del archivo ultima_recarga.json",
+                    QMessageBox.Ok
+                )
+                return False
+        
+        # Enviar solicitud a la API
+        success, message = datos_manager.enviar_solicitud()
+        
+        if success:
+            dialog = QRRechargeDialog(datos_manager, parent_widget)
+            return dialog.exec_()
+        else:
             QMessageBox.critical(
                 parent_widget,
-                "Error de Carga",
-                "No se pudieron cargar los datos de recarga del archivo ultima_recarga.json",
+                "Error de Conexión",
+                f"No se pudo conectar con el servidor: {message}",
                 QMessageBox.Ok
             )
             return False
-    
-    # Enviar solicitud a la API
-    success, message = datos_manager.enviar_solicitud()
-    
-    if success:
-        dialog = QRRechargeDialog(datos_manager, parent_widget)
-        return dialog.exec_()
-    else:
-        QMessageBox.critical(
-            parent_widget,
-            "Error de Conexión",
-            f"No se pudo conectar con el servidor: {message}",
-            QMessageBox.Ok
-        )
+    except Exception as e:
+        import traceback
+        error_msg = f"Error inesperado:\n{str(e)}\n\n{traceback.format_exc()}"
+        print(error_msg)
+        
+        if parent_widget:
+            QMessageBox.critical(
+                parent_widget,
+                "Error Inesperado",
+                error_msg,
+                QMessageBox.Ok
+            )
         return False
 
 
-# Para uso directo en pruebas
-if __name__ == "__main__":
-    app = QApplication([])
-    
-    # Ejemplo de cómo proporcionar el token de autenticación
-    mi_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTQ1LCJkbmkiOiI2MDUxOTQ5IiwiZmlyc3RfbmFtZSI6Ikpvc2UgTHVpcyIsImxhc3RfbmFtZSI6IlphbW9yYSIsImNlbGxwaG9uZSI6Nzk1MTE4MTAsInNlY3JldCI6IjExNmJlMDE1MGE5MWFjMmNmYzg2MzgwNjU0NTFmNzVkIiwiaWF0IjoxNzQ2NjQ4ODE4LCJleHAiOjE3NzgxODQ4MTh9.z5zp5EuMFJz35UQ8Xv5eO7S4yM6bWvrMGCOh-QclTk8"  # Reemplaza con tu token real
-    
-    solicitar_recarga(
-        auth_token=mi_token,
-        parent_widget=None
-    )
-    
-    app.exec_()
