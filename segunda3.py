@@ -19,6 +19,7 @@ from despedida import VentanaDespedida
 from PySide2.QtWidgets import QMainWindow
 from PySide2.QtCore import QPropertyAnimation, QEasingCurve, QSequentialAnimationGroup
 from PySide2.QtGui import QPainter, QPixmap
+from nfc_monitor import NFCMonitorSingleton
 
 class CustomMessageDialog(QDialog):
     def __init__(self, parent=None):
@@ -236,6 +237,7 @@ class Ui_MainWindow3(QObject):
         super().__init__()
         self.blur_effect = QGraphicsBlurEffect()
         self.blur_effect.setBlurRadius(0)
+        self.nfc_monitor = NFCMonitorSingleton.get_instance()
 
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
@@ -243,6 +245,10 @@ class Ui_MainWindow3(QObject):
                     
         MainWindow.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         MainWindow.resize(1280, 1024)
+        self.MainWindow = MainWindow
+        self.nfc_monitor.register_window(self.MainWindow)
+        self.nfc_monitor.card_removed.connect(self.handle_card_removed)
+        
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.centralwidget.setGraphicsEffect(self.blur_effect)
@@ -717,6 +723,15 @@ class Ui_MainWindow3(QObject):
         QMetaObject.connectSlotsByName(MainWindow)
     # setupUi
 
+    def handle_card_removed(self):
+        """Manejar el evento de retiro de tarjeta"""
+        # Cerrar ventanas adicionales si están abiertas
+        if hasattr(self, 'ventana_recarga') and self.ventana_recarga:
+            self.ventana_recarga.close()
+            
+        if hasattr(self, 'ventana_movimientos') and self.ventana_movimientos:
+            self.ventana_movimientos.close()
+
     def mostrar_ventana_despedida(self):
         self.ventana = VentanaDespedida()
         self.ventana.show()
@@ -874,6 +889,9 @@ class Ui_MainWindow3(QObject):
         self.ui_movimientos.setupUi(self.ventana_movimientos)
         self.ventana_movimientos.show()
         self.actualizar_etiquetas_movimientos()
+        
+        # Registrar la ventana de movimientos con el monitor NFC
+        self.nfc_monitor.register_window(self.ventana_movimientos)
 
     def mostrar_mensaje_temporal(self, mensaje, duracion_ms=3000, icono='info'):
         """Muestra un mensaje flotante temporal con estilo moderno"""
@@ -912,6 +930,11 @@ class Ui_MainWindow3(QObject):
    
    
     def closeEvent(self, event):
+        # Desregistrar la ventana principal del monitor NFC
+        if hasattr(self, 'nfc_monitor'):
+            self.nfc_monitor.unregister_window(self.MainWindow)
+            
+        # Detener el monitoreo de la tarjeta original si es necesario
         self.monitor_tarjeta.deleteObserver(self.lector_nfc)
         super().closeEvent(event)
         
@@ -928,6 +951,9 @@ class Ui_MainWindow3(QObject):
         self.ui_recarga.setupUi(self.ventana_recarga)
         self.ventana_recarga.show()
         self.actualizar_etiquetas_recarga()
+        
+        # Registrar la ventana de recarga con el monitor NFC
+        self.nfc_monitor.register_window(self.ventana_recarga)
         
     def mostrar_mensaje_error(self):
         self.blur_effect.setBlurRadius(5)

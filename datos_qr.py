@@ -259,56 +259,72 @@ class QRDatosManager:
             print(f"Error al cargar datos de recarga: {e}")
             return False
     
-    def enviar_solicitud(self):
-        """Envía los datos guardados en 'ultima_recarga.json' a la nueva API y espera la URL del QR como respuesta"""
-        try:
-            # Cargar los datos del archivo JSON
-            if not self.cargar_datos_recarga():
-                return False, "No se pudieron cargar los datos de recarga"
+    def enviar_solicitud(self, max_intentos=3):
+        """Envía los datos con reintentos automáticos"""
+        for intento in range(1, max_intentos + 1):
+            try:
+                # Cargar los datos del archivo JSON
+                if not self.cargar_datos_recarga():
+                    return False, "No se pudieron cargar los datos de recarga"
 
-            # Construir el payload usando el nuevo formato requerido
-            # No enviamos el timestamp al API ya que no lo requiere
-            datos_para_api = {
-                "monto": self.datos_recarga.get("monto", 0),
-                "uid": self.datos_recarga.get("uid", ""),
-                "first_name": self.datos_recarga.get("first_name", ""),
-                "last_name": self.datos_recarga.get("last_name", ""),
-                "document": self.datos_recarga.get("document", ""),
-                "email": self.datos_recarga.get("email", ""),
-                "nit": self.datos_recarga.get("nit", ""),
-                "razon_social": self.datos_recarga.get("razon_social", "")
-            }
+                datos_para_api = {
+                    "monto": self.datos_recarga.get("monto", 0),
+                    "uid": self.datos_recarga.get("uid", ""),
+                    "first_name": self.datos_recarga.get("first_name", ""),
+                    "last_name": self.datos_recarga.get("last_name", ""),
+                    "document": self.datos_recarga.get("document", ""),
+                    "email": self.datos_recarga.get("email", ""),
+                    "nit": self.datos_recarga.get("nit", ""),
+                    "razon_social": self.datos_recarga.get("razon_social", "")
+                }
 
-            # Headers para la solicitud
-            headers = {
-                "Content-Type": "application/json"
-                # Ya no necesitamos token de autenticación
-            }
-            
-            respuesta = requests.post(self.api_url, json=datos_para_api, headers=headers)
-
-            if respuesta.status_code == 200:
-                self.api_response = respuesta.json()
+                headers = {"Content-Type": "application/json"}
                 
-        # Verificar si la respuesta tiene el formato esperado
-                if self.api_response.get("success") and "data" in self.api_response:
-                    data = self.api_response["data"]
-                    # Adaptar según la estructura real de la respuesta del nuevo API
-                    self.qr_url = data.get("qr_url", data.get("qr_simple_url", ""))
-                    
-                    # Guardar la respuesta completa para uso posterior
-                    with open("ultima_respuesta_api.json", "w") as f:
-                        json.dump(self.api_response, f, indent=4)
-                    
-                    return True, self.qr_url
-                else:
-                    return False, "Formato de respuesta de API inesperado"
-            else:
-                return False, f"Error {respuesta.status_code}: {respuesta.text}"
+                # Aumentar el timeout y capturar específicamente los errores de timeout
+                respuesta = requests.post(
+                    self.api_url, 
+                    json=datos_para_api, 
+                    headers=headers,
+                    timeout=30
+                )
 
-        except Exception as e:
-            print(f"Error al enviar solicitud: {e}")
-            return False, str(e)
+                if respuesta.status_code == 200:
+                    self.api_response = respuesta.json()
+                    
+                    if self.api_response.get("success") and "data" in self.api_response:
+                        data = self.api_response["data"]
+                        self.qr_url = data.get("qr_url", data.get("qr_simple_url", ""))
+                        
+                        with open("ultima_respuesta_api.json", "w") as f:
+                            json.dump(self.api_response, f, indent=4)
+                        
+                        return True, self.qr_url
+                    else:
+                        return False, "Formato de respuesta de API inesperado"
+                elif respuesta.status_code == 504:
+                    # Si es un error 504, esperamos más tiempo antes de reintentar
+                    if intento < max_intentos:
+                        tiempo_espera = 2 ** intento  # Backoff exponencial: 2s, 4s, 8s, etc.
+                        print(f"Error 504 recibido. Reintentando en {tiempo_espera} segundos...")
+                        time.sleep(tiempo_espera)
+                        continue
+                    return False, f"Error 504: Gateway Timeout después de {max_intentos} intentos"
+                else:
+                    return False, f"Error {respuesta.status_code}: {respuesta.text}"
+
+            except requests.exceptions.Timeout:
+                if intento < max_intentos:
+                    tiempo_espera = 2 ** intento
+                    print(f"Timeout en solicitud. Reintentando en {tiempo_espera} segundos...")
+                    time.sleep(tiempo_espera)
+                    continue
+                return False, f"Error de timeout después de {max_intentos} intentos"
+            except Exception as e:
+                print(f"Error al enviar solicitud (intento {intento}): {e}")
+                if intento < max_intentos:
+                    time.sleep(2 ** intento)
+                    continue
+                return False, str(e)
     
     def generar_qr_basado_en_respuesta(self):
         """Descarga y muestra la imagen QR desde qr_url en lugar de generar un nuevo QR"""
@@ -367,12 +383,12 @@ class QRRechargeDialog(QDialog):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_qr_status)
         self.timer.start(500)  # Verificar cada 500ms
-        
+
     def setup_ui(self):
         self.setWindowTitle("Código QR para Recarga")
         self.setFixedSize(400, 500)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet("""
+        self.setStyleSheet("""y
             QDialog {
                 background-color: #F5F5F5;
                 border-radius: 10px;
@@ -465,6 +481,26 @@ class QRRechargeDialog(QDialog):
     
     def check_qr_status(self):
         """Verifica si ya tenemos la respuesta de la API y muestra el QR"""
+        # Contador para mostrar tiempo de espera
+        if not hasattr(self, 'wait_counter'):
+            self.wait_counter = 0
+        
+        self.wait_counter += 1
+        
+        # Actualizar mensaje cada segundo
+        if self.wait_counter % 2 == 0:  # 500ms * 2 = 1s
+            self.status_label.setText(f"Generando código QR... ({self.wait_counter//2}s)")
+        
+        # Si ha pasado mucho tiempo, mostrar un QR temporal
+        if self.wait_counter > 20 and not self.datos_manager.qr_url:  # Después de 10 segundos
+            # Generar QR temporal mientras seguimos esperando
+            temp_qr = self.datos_manager.generar_qr_temporal()
+            if temp_qr and not hasattr(self, 'showed_temp_qr'):
+                self.show_qr_image(temp_qr)
+                self.status_label.setText("Usando QR temporal mientras esperamos respuesta...")
+                self.showed_temp_qr = True
+                # NO detener el timer para seguir intentando obtener el QR real
+        
         if self.datos_manager.qr_url:
             self.timer.stop()
             
@@ -473,11 +509,9 @@ class QRRechargeDialog(QDialog):
             if qr_image:
                 self.show_qr_image(qr_image)
                 
-                # Mostrar información del pago
                 if api_data:
                     self.status_label.setText(f"Monto: Bs. {self.datos_manager.datos_recarga['monto']}")
                     
-                    # Mostrar información adicional como código de recaudación
                     info_text = f"Código de transacción: {api_data.get('id_transaccion', 'N/A')}\n"
                     info_text += f"ID Recaudación: {api_data.get('codigo_recaudacion', 'N/A')}"
                     self.info_label.setText(info_text)
@@ -540,4 +574,6 @@ def solicitar_recarga(uid="", documento="", razon_social="", complemento="", cor
             )
         return False
 
-
+if __name__ == "__main__":
+    app = QApplication([])
+    app.exec_()

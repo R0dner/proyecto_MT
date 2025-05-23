@@ -1,10 +1,11 @@
-from PySide2.QtCore import QObject, Signal
+from PySide2.QtCore import QObject, Signal, QTimer
 from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.util import toHexString
 from smartcard.Exceptions import CardConnectionException
-from PySide2.QtWidgets import QMessageBox
+from PySide2.QtWidgets import QMessageBox, QLabel
 from PySide2.QtCore import Qt
 import time
+from NFCFileCleanup import NFCFileCleanup
 
 getuid = [0xFF, 0xCA, 0x00, 0x00, 0x00]
 
@@ -68,6 +69,12 @@ class NFCMonitor(QObject):
         # Lista de ventanas registradas para cerrar
         self.windows_to_close = []
         
+        # Flag para saber si solo el carrusel está abierto
+        self.carousel_window = None
+        
+        # Error dialog reference
+        self.error_dialog = None
+        
         # Estilo para mensajes de error
         self.error_style = """
             QMessageBox {
@@ -84,20 +91,9 @@ class NFCMonitor(QObject):
                 text-align: center;
                 qproperty-alignment: AlignCenter;
             }
-            QMessageBox QPushButton {
-                background-color: #DC3545;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 4px;
-                min-width: 40px;
-                text-align: center;
-            }
-            QMessageBox QPushButton:hover {
-                background-color: #C82333;
-            }
         """
+        self.file_cleanup = NFCFileCleanup(self, delay_seconds=5)
+        print("Sistema de limpieza de archivos inicializado")
     
     def register_window(self, window):
         """Registra una ventana para cerrarla cuando se retire la tarjeta"""
@@ -111,18 +107,36 @@ class NFCMonitor(QObject):
             self.windows_to_close.remove(window)
             print(f"Ventana eliminada del registro. Total ventanas: {len(self.windows_to_close)}")
     
+    def register_carousel(self, carousel_window):
+        """Registra el carrusel de videos para poder identificarlo"""
+        self.carousel_window = carousel_window
+        # También registrarlo como ventana normal para que se cierre
+        self.register_window(carousel_window)
+    
+    def is_only_carousel_open(self):
+        """Comprueba si solo el carrusel está abierto"""
+        if self.carousel_window is None:
+            return False
+        
+        # Si solo hay una ventana registrada y es el carrusel
+        if len(self.windows_to_close) == 1 and self.windows_to_close[0] == self.carousel_window:
+            return True
+        return False
+    
     def handle_card_removal(self):
         """Manejador centralizado para cuando se retira una tarjeta"""
         print("Tarjeta retirada detectada - Cerrando ventanas registradas...")
         
-        # Mostrar mensaje de que se retiró la tarjeta
-        self.show_error_message("Se ha retirado la tarjeta\nCerrando ventanas...")
-        
         # Emitir señal para otros componentes que puedan estar escuchando
         self.card_removed.emit()
         
-        # Cerrar todas las ventanas registradas
-        self.close_all_windows()
+        # No mostrar mensaje si solo está abierto el carrusel
+        if not self.is_only_carousel_open():
+            # Mostrar mensaje de que se retiró la tarjeta (con auto-cierre)
+            self.show_error_message("Se ha retirado la tarjeta\nCerrando ventanas...")
+        else:
+            # Si es solo el carrusel, cerrar directamente
+            self.close_all_windows()
     
     def close_all_windows(self):
         """Cierra todas las ventanas registradas"""
@@ -135,20 +149,42 @@ class NFCMonitor(QObject):
         self.windows_to_close = []
     
     def show_error_message(self, message):
-        """Muestra un mensaje de error estilizado"""
-        error_dialog = QMessageBox()
-        error_dialog.setIcon(QMessageBox.NoIcon)
-        error_dialog.setStyleSheet(self.error_style)
+        """Muestra un mensaje de error estilizado sin botones que se cierra automáticamente después de 5 segundos"""
+        # Si ya hay un diálogo abierto, cerrarlo
+        if self.error_dialog is not None:
+            self.error_dialog.close()
+            self.error_dialog = None
+        
+        # Crear nuevo diálogo
+        self.error_dialog = QMessageBox()
+        self.error_dialog.setIcon(QMessageBox.NoIcon)
+        self.error_dialog.setStyleSheet(self.error_style)
         
         formatted_message = message.replace("\n", "<br>")
-        error_dialog.setText(formatted_message)
-        error_dialog.setWindowTitle("Advertencia")
-        error_dialog.setStandardButtons(QMessageBox.Ok)
+        self.error_dialog.setText(formatted_message)
+        self.error_dialog.setWindowTitle("Advertencia")
         
-        error_dialog.setGeometry(350, 400, 300, 200)
-        error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        # Eliminar todos los botones estándar
+        self.error_dialog.setStandardButtons(QMessageBox.NoButton)
         
-        error_dialog.exec_()
+        self.error_dialog.setGeometry(350, 400, 300, 200)
+        self.error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        
+        # Configurar un temporizador para cerrar automáticamente después de 5 segundos
+        QTimer.singleShot(5000, lambda: self.close_dialog_and_windows())
+        
+        # Mostrar el diálogo de forma no modal
+        self.error_dialog.show()
+    
+    def close_dialog_and_windows(self):
+        """Cierra tanto el diálogo como todas las ventanas registradas"""
+        # Cerrar el diálogo si existe
+        if self.error_dialog:
+            self.error_dialog.close()
+            self.error_dialog = None
+        
+        # Cerrar todas las ventanas registradas
+        self.close_all_windows()
 
 # Singleton para NFCMonitor
 class NFCMonitorSingleton:
