@@ -10,7 +10,6 @@ import io
 import time
 import os
 
-# Importamos las clases necesarias del archivo NFCHandler.py
 from smartcard.Card import Card
 from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.util import toHexString
@@ -42,10 +41,40 @@ def download_image_from_url(url):
         print(f"Error al descargar imagen: {e}")
         return None
 
+# Singleton para NFCMonitor
+class NFCMonitorSingleton:
+    _instance = None
+    
+    @staticmethod
+    def get_instance():
+        """Obtiene o crea una instancia única del monitor NFC"""
+        if NFCMonitorSingleton._instance is None:
+            from nfc_monitor import NFCMonitorSingleton as MainNFCMonitor
+            return MainNFCMonitor.get_instance()
+        return NFCMonitorSingleton._instance
+
+# Monitor NFC simplificado para casos donde no se puede importar el principal
+class SimpleNFCMonitor(QObject):
+    card_removed = Signal()
+    
+    def __init__(self):
+        super().__init__()
+        self.windows_to_close = []
+        
+    def register_window(self, window):
+        if window not in self.windows_to_close:
+            self.windows_to_close.append(window)
+            print(f"Ventana registrada en monitor simple. Total: {len(self.windows_to_close)}")
+    
+    def unregister_window(self, window):
+        if window in self.windows_to_close:
+            self.windows_to_close.remove(window)
+            print(f"Ventana eliminada del monitor simple. Total: {len(self.windows_to_close)}")
+
 # Importamos la clase Lectura del segundo archivo (NFCHandler.py)
-class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el método update
+class Lectura(CardObserver):
     def __init__(self, tabla_movimientos=None):
-        super().__init__()  # Importante llamar al constructor de la clase padre
+        super().__init__()
         self.cards = []
         self.card_read = False
         self.uid = None
@@ -57,7 +86,6 @@ class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el m�
         self.tabla_movimientos = tabla_movimientos
     
     def update(self, observable, actions):
-        """Método requerido por CardObserver que se llama cuando hay cambios en las tarjetas"""
         (addedcards, removedcards) = actions
         for card in addedcards:
             if card not in self.cards:
@@ -77,14 +105,12 @@ class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el m�
                 self.data_ready.clear()
 
     def read_card(self):
-        """Lee los datos de la tarjeta NFC cuando se detecta"""
         if self.cards:
             card = self.cards[0]
             try:
                 connection = card.createConnection()
                 connection.connect()
                 time.sleep(0.5)
-                # Comando para obtener el UID de la tarjeta
                 getuid = [0xFF, 0xCA, 0x00, 0x00, 0x00]
                 response, sw1, sw2 = connection.transmit(getuid)
                 self.uid = toHexString(response).replace(" ", "").upper()
@@ -99,7 +125,6 @@ class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el m�
                 self.data_ready.clear()
 
     def get_data_from_api(self, uid):
-        """Obtiene los datos de la tarjeta desde la API"""
         url = "https://cmisocket.miteleferico.bo/api/v1/billetaje/info-card"
         try:
             response = requests.post(url, json={"card_uid": uid})
@@ -131,14 +156,12 @@ class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el m�
             return None
 
     def get_card_data(self, timeout=None):
-        """Devuelve los datos de la tarjeta si están disponibles"""
         if self.data_ready.wait(timeout):
             with self.lock:
                 return self.card_data
         return None
 
     def is_data_ready(self):
-        """Comprueba si los datos de la tarjeta están listos"""
         return self.data_ready.is_set()
 
     def definir_estado(self, estado):
@@ -153,28 +176,22 @@ class Lectura(CardObserver):  # Heredamos de CardObserver para implementar el m�
 
 class QRDatosManager:
     def __init__(self):
-        # URL base para la API - Nueva dirección sin requerir token
         self.base_url = "https://serviciosvirtual-test.miteleferico.bo"
         self.api_url = f"{self.base_url}/api/v1/payment/register-payment-external"
         self.datos_recarga = {}
         self.qr_url = None
-        self.correo_temporal = None  # Para almacenar el correo temporalmente sin guardarlo
-        self.api_response = None  # Para almacenar la respuesta completa de la API
+        self.correo_temporal = None
+        self.api_response = None
         
-        # Creamos una instancia del lector NFC pero sin integrarla con el monitor
-        # para evitar errores si no hay lector conectado
         self.nfc_reader = Lectura()
-        self.cardmonitor = None  # Lo inicializaremos solo si es necesario
+        self.cardmonitor = None
         
         try:
-            # Solo inicializamos el monitor de tarjetas si realmente lo necesitamos
             self.inicializar_monitor_tarjetas()
         except Exception as e:
             print(f"Advertencia: No se pudo inicializar el monitor de tarjetas: {e}")
-            # Seguimos adelante sin el monitor de tarjetas
-    
+
     def inicializar_monitor_tarjetas(self):
-        """Inicializa el monitor de tarjetas solo si es necesario"""
         try:
             self.cardmonitor = CardMonitor()
             self.cardmonitor.addObserver(self.nfc_reader)
@@ -184,7 +201,6 @@ class QRDatosManager:
             self.cardmonitor = None
     
     def __del__(self):
-        # Limpiamos el monitor de tarjetas si existe
         try:
             if self.cardmonitor:
                 self.cardmonitor.deleteObserver(self.nfc_reader)
@@ -192,22 +208,15 @@ class QRDatosManager:
             pass
     
     def recopilar_datos(self, uid, documento, razon_social, complemento, correo, monto):
-        """Recopila los datos combinando la información de la tarjeta NFC y los datos del formulario"""
         self.correo_temporal = correo
-        
-        # Primero intentamos obtener datos de la tarjeta NFC si está disponible
-        card_data = None
         uid_clean = uid.replace("UID: ", "") if uid.startswith("UID: ") else uid
         
-        # Si tenemos un lector activo y datos disponibles, los usamos
         if self.nfc_reader.is_data_ready():
             card_data = self.nfc_reader.get_card_data()
         
-        # Si no tenemos datos del reader, intentamos obtenerlos mediante la API directamente
         if not card_data and uid_clean:
             card_data = self.nfc_reader.get_data_from_api(uid_clean)
         
-        # Si tenemos datos de la tarjeta, los combinamos con los del formulario
         if card_data:
             self.datos_recarga = {
                 "monto": float(monto) if monto else 0,
@@ -221,12 +230,11 @@ class QRDatosManager:
                 "timestamp": int(time.time())
             }
         else:
-            # Si no hay datos de la tarjeta, usamos solo los del formulario
             self.datos_recarga = {
                 "monto": float(monto) if monto else 0,
                 "uid": uid_clean,
-                "first_name": "",  # Vacío porque no tenemos este dato
-                "last_name": "",   # Vacío porque no tenemos este dato
+                "first_name": "",
+                "last_name": "",
                 "document": documento,
                 "email": correo,
                 "nit": documento,
@@ -234,19 +242,12 @@ class QRDatosManager:
                 "timestamp": int(time.time())
             }
             
-        # Depuración: imprimir datos recopilados
-        print("Datos recopilados para la recarga:")
-        for key, value in self.datos_recarga.items():
-            print(f"  {key}: {value}")
-        
-        # Guardar localmente en un archivo JSON para utilizarlo en la solicitud
         with open("ultima_recarga.json", "w") as f:
             json.dump(self.datos_recarga, f, indent=4)
             
         return self.datos_recarga
     
     def cargar_datos_recarga(self):
-        """Carga los datos del archivo ultima_recarga.json"""
         try:
             if os.path.exists("ultima_recarga.json"):
                 with open("ultima_recarga.json", "r") as f:
@@ -260,10 +261,8 @@ class QRDatosManager:
             return False
     
     def enviar_solicitud(self, max_intentos=3):
-        """Envía los datos con reintentos automáticos"""
         for intento in range(1, max_intentos + 1):
             try:
-                # Cargar los datos del archivo JSON
                 if not self.cargar_datos_recarga():
                     return False, "No se pudieron cargar los datos de recarga"
 
@@ -280,7 +279,6 @@ class QRDatosManager:
 
                 headers = {"Content-Type": "application/json"}
                 
-                # Aumentar el timeout y capturar específicamente los errores de timeout
                 respuesta = requests.post(
                     self.api_url, 
                     json=datos_para_api, 
@@ -302,9 +300,8 @@ class QRDatosManager:
                     else:
                         return False, "Formato de respuesta de API inesperado"
                 elif respuesta.status_code == 504:
-                    # Si es un error 504, esperamos más tiempo antes de reintentar
                     if intento < max_intentos:
-                        tiempo_espera = 2 ** intento  # Backoff exponencial: 2s, 4s, 8s, etc.
+                        tiempo_espera = 2 ** intento
                         print(f"Error 504 recibido. Reintentando en {tiempo_espera} segundos...")
                         time.sleep(tiempo_espera)
                         continue
@@ -327,21 +324,17 @@ class QRDatosManager:
                 return False, str(e)
     
     def generar_qr_basado_en_respuesta(self):
-        """Descarga y muestra la imagen QR desde qr_url en lugar de generar un nuevo QR"""
         try:
             if self.qr_url and self.api_response and "data" in self.api_response:
-                # Usar directamente la URL del QR proporcionada por la API
                 qr_url = self.api_response["data"].get("qr_url", self.api_response["data"].get("qr_simple_url", ""))
                 
                 print(f"URL del QR a descargar: {qr_url}")
                 
                 if qr_url:
-                    # Descargar la imagen QR desde la URL
                     qr_image = download_image_from_url(qr_url)
                     if qr_image:
                         return qr_image, self.api_response["data"]
                     else:
-                        # Si falla la descarga, generamos un QR temporal como respaldo
                         print("Fallo al descargar QR, generando uno temporal...")
                         return self.generar_qr_temporal(), self.api_response["data"]
             
@@ -351,12 +344,10 @@ class QRDatosManager:
             return None, None
     
     def generar_qr_temporal(self):
-        """Genera un QR temporal con los datos de ultima_recarga.json mientras se espera la respuesta de la API"""
         if not self.datos_recarga:
             if not self.cargar_datos_recarga():
                 return None
         
-        # Crear un código QR temporal basado en los datos recopilados
         data = json.dumps(self.datos_recarga)
         qr = qrcode.QRCode(
             version=1,
@@ -368,7 +359,6 @@ class QRDatosManager:
         qr.make(fit=True)
         
         img = qr.make_image(fill_color="black", back_color="white")
-        # Convertir la imagen PIL a QImage usando la función auxiliar
         return pil_to_qimage(img)
 
 
@@ -376,19 +366,45 @@ class QRRechargeDialog(QDialog):
     def __init__(self, datos_manager, parent=None):
         super().__init__(parent)
         self.datos_manager = datos_manager
+        self.nfc_monitor = NFCMonitorSingleton.get_instance()
         self.setup_ui()
         self.show_loading_qr()
         
-        # Iniciar proceso de solicitud en un hilo separado
+        # Registrar esta ventana con el monitor NFC
+        self.nfc_monitor.register_window(self)
+        
+        # Conectar señal de tarjeta removida
+        self.nfc_monitor.card_removed.connect(self.close_on_card_removal)
+        
+        # Iniciar proceso de solicitud
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_qr_status)
-        self.timer.start(500)  # Verificar cada 500ms
+        self.timer.start(500)
+
+    def close_on_card_removal(self):
+        """Cierra la ventana inmediatamente cuando se retira la tarjeta"""
+        print("QR Dialog: Tarjeta removida detectada - Cerrando ventana QR")
+        self.accept()
+
+    def closeEvent(self, event):
+        """Sobrescribir el evento de cierre para desregistrar la ventana"""
+        try:
+            if hasattr(self, 'nfc_monitor') and self.nfc_monitor:
+                self.nfc_monitor.unregister_window(self)
+                print("Ventana QR desregistrada del monitor NFC")
+        except Exception as e:
+            print(f"Error al desregistrar ventana: {e}")
+        
+        if hasattr(self, 'timer') and self.timer.isActive():
+            self.timer.stop()
+        
+        super().closeEvent(event)
 
     def setup_ui(self):
         self.setWindowTitle("Código QR para Recarga")
-        self.setFixedSize(400, 500)
+        self.setFixedSize(400, 550)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet("""y
+        self.setStyleSheet("""
             QDialog {
                 background-color: #F5F5F5;
                 border-radius: 10px;
@@ -396,10 +412,8 @@ class QRRechargeDialog(QDialog):
             }
         """)
         
-        # Layout principal
         layout = QVBoxLayout(self)
         
-        # Encabezado
         header = QLabel("Escanea el código QR")
         header.setStyleSheet("""
             background-color: #2C3E50;
@@ -412,24 +426,38 @@ class QRRechargeDialog(QDialog):
         """)
         header.setAlignment(Qt.AlignCenter)
         
-        # Contenedor del QR
         self.qr_container = QLabel()
         self.qr_container.setFixedSize(300, 300)
         self.qr_container.setStyleSheet("background-color: white; border: 1px solid #CFD8DC;")
         self.qr_container.setAlignment(Qt.AlignCenter)
         
-        # Estado
         self.status_label = QLabel("Generando código QR...")
         self.status_label.setStyleSheet("color: #455A64; font-size: 16px;")
         self.status_label.setAlignment(Qt.AlignCenter)
         
-        # Información adicional
         self.info_label = QLabel("")
         self.info_label.setStyleSheet("color: #455A64; font-size: 12px;")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setWordWrap(True)
         
-        # Botón Cerrar
+        buttons_layout = QHBoxLayout()
+        
+        payment_done_button = QPushButton("Ya realicé el pago")
+        payment_done_button.setStyleSheet("""
+            QPushButton {
+                background-color: #27AE60;
+                color: white;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #219A52;
+            }
+        """)
+        payment_done_button.clicked.connect(self.payment_completed)
+        
         close_button = QPushButton("Cerrar")
         close_button.setStyleSheet("""
             QPushButton {
@@ -437,7 +465,7 @@ class QRRechargeDialog(QDialog):
                 color: white;
                 border-radius: 5px;
                 padding: 10px;
-                font-size: 16px;
+                font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #34495E;
@@ -445,16 +473,18 @@ class QRRechargeDialog(QDialog):
         """)
         close_button.clicked.connect(self.accept)
         
+        buttons_layout.addWidget(payment_done_button)
+        buttons_layout.addWidget(close_button)
+        
         layout.addWidget(header)
         layout.addWidget(self.qr_container, 0, Qt.AlignCenter)
         layout.addWidget(self.status_label)
         layout.addWidget(self.info_label)
-        layout.addWidget(close_button)
+        layout.addLayout(buttons_layout)
         
         self.setLayout(layout)
     
     def show_loading_qr(self):
-        """Muestra un indicador de carga mientras se genera el QR"""
         loading_gif = QMovie("loading.gif")
         if QFile("loading.gif").exists():
             self.qr_container.setMovie(loading_gif)
@@ -464,7 +494,6 @@ class QRRechargeDialog(QDialog):
             self.qr_container.setStyleSheet("background-color: white; font-size: 20px;")
     
     def show_qr_image(self, qr_image):
-        """Muestra la imagen QR en el diálogo"""
         if isinstance(qr_image, QImage):
             pixmap = QPixmap.fromImage(qr_image)
         else:
@@ -479,27 +508,30 @@ class QRRechargeDialog(QDialog):
         
         self.qr_container.setPixmap(scaled_pixmap)
     
+    def payment_completed(self):
+        QMessageBox.information(
+            self,
+            "Pago Confirmado",
+            "Gracias por confirmar tu pago. El proceso de recarga se completará en breves momentos.",
+            QMessageBox.Ok
+        )
+        self.accept()
+    
     def check_qr_status(self):
-        """Verifica si ya tenemos la respuesta de la API y muestra el QR"""
-        # Contador para mostrar tiempo de espera
         if not hasattr(self, 'wait_counter'):
             self.wait_counter = 0
         
         self.wait_counter += 1
         
-        # Actualizar mensaje cada segundo
-        if self.wait_counter % 2 == 0:  # 500ms * 2 = 1s
+        if self.wait_counter % 2 == 0:
             self.status_label.setText(f"Generando código QR... ({self.wait_counter//2}s)")
         
-        # Si ha pasado mucho tiempo, mostrar un QR temporal
-        if self.wait_counter > 20 and not self.datos_manager.qr_url:  # Después de 10 segundos
-            # Generar QR temporal mientras seguimos esperando
+        if self.wait_counter > 20 and not self.datos_manager.qr_url:
             temp_qr = self.datos_manager.generar_qr_temporal()
             if temp_qr and not hasattr(self, 'showed_temp_qr'):
                 self.show_qr_image(temp_qr)
                 self.status_label.setText("Usando QR temporal mientras esperamos respuesta...")
                 self.showed_temp_qr = True
-                # NO detener el timer para seguir intentando obtener el QR real
         
         if self.datos_manager.qr_url:
             self.timer.stop()
@@ -511,12 +543,8 @@ class QRRechargeDialog(QDialog):
                 
                 if api_data:
                     self.status_label.setText(f"Monto: Bs. {self.datos_manager.datos_recarga['monto']}")
-                    
-                    info_text = f"Código de transacción: {api_data.get('id_transaccion', 'N/A')}\n"
-                    info_text += f"ID Recaudación: {api_data.get('codigo_recaudacion', 'N/A')}"
-                    self.info_label.setText(info_text)
+                    self.info_label.setText("Escanea el código QR para completar tu pago")
             else:
-                # Si falló la generación del QR basado en la respuesta, usamos el temporal
                 temp_qr = self.datos_manager.generar_qr_temporal()
                 if temp_qr:
                     self.show_qr_image(temp_qr)
@@ -526,17 +554,12 @@ class QRRechargeDialog(QDialog):
 
 
 def solicitar_recarga(uid="", documento="", razon_social="", complemento="", correo="", monto="", parent_widget=None):
-    """Función principal para iniciar el proceso de recarga - Ya no requiere auth_token"""
-    # Crear instancia del gestor de datos
     try:
         datos_manager = QRDatosManager()
         
-        # Verificar si tenemos datos proporcionados o debemos cargar desde el archivo
         if uid and documento and monto:
-            # Recopilar datos y guardarlos en 'ultima_recarga.json'
             datos_manager.recopilar_datos(uid, documento, razon_social, complemento, correo, monto)
         else:
-            # Cargar datos del archivo JSON
             if not datos_manager.cargar_datos_recarga():
                 QMessageBox.critical(
                     parent_widget,
@@ -546,7 +569,6 @@ def solicitar_recarga(uid="", documento="", razon_social="", complemento="", cor
                 )
                 return False
         
-        # Enviar solicitud a la API
         success, message = datos_manager.enviar_solicitud()
         
         if success:

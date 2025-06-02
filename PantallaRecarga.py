@@ -1,7 +1,6 @@
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
-from iframe import Iframe
 from PySide2.QtGui import QPixmap
 from PySide2.QtSvg import QSvgRenderer
 from PySide2.QtGui import QPainter, QPixmap, QColor, QPen
@@ -16,12 +15,11 @@ from nfc_monitor import NFCMonitorSingleton
 class Ui_Recarga(QObject):
     def __init__(self):
         super().__init__()
-        
-        # Usamos el monitor NFC centralizado
+        # Usar el singleton del monitor NFC
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
-        
-        # No creamos un nuevo observador, simplemente nos conectamos al existente
+        # Conectar señales del monitor NFC
         self.nfc_monitor.card_removed.connect(self.handle_card_removal)
+        self.nfc_monitor.card_error.connect(self.show_error_message)
 
     def handle_card_removal(self):
         # Mostrar mensaje de que se retiró la tarjeta
@@ -30,56 +28,15 @@ class Ui_Recarga(QObject):
         # El NFCMonitor se encargará de cerrar todas las ventanas registradas
 
     def show_error_message(self, message):
-        error_dialog = QMessageBox()
-        error_dialog.setIcon(QMessageBox.NoIcon)
-        
-        error_dialog.setStyleSheet("""
-            QMessageBox {
-                background-color: #f0f0f0;
-                text-align: center;
-            }
-            QMessageBox QLabel {
-                color: #333333;
-                font-size: 24px;
-                font-weight: bold;
-                padding: 30px;
-                min-width: 400px;
-                max-width: 100px;
-                text-align: center;
-                qproperty-alignment: AlignCenter;
-            }
-            QMessageBox QPushButton {
-                background-color: #DC3545;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 4px;
-                min-width: 40px;
-                text-align: center;
-            }
-            QMessageBox QPushButton:hover {
-                background-color: #C82333;
-            }
-        """)
-        formatted_message = message.replace("\n", "<br>")
-        error_dialog.setText(formatted_message)
-        error_dialog.setWindowTitle("Advertencia")
-        error_dialog.setStandardButtons(QMessageBox.Ok)
-        
-        error_dialog.setGeometry(350, 400, 300, 200)
-        error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
-        
-        # Cuando se cierra el diálogo, cerramos todas las ventanas registradas
-        error_dialog.accepted.connect(self.nfc_monitor.close_all_windows)
-        
-        error_dialog.exec_()
+        # Mostrar mensaje de error con el estilo del monitor NFC
+        self.nfc_monitor.show_auto_close_message(message)
 
     def setupUi(self, MainWindow):
         self.MainWindow = MainWindow
         
         # Registrar esta ventana con el monitor NFC
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
+        self.nfc_monitor.register_window(MainWindow)
         
         # Cuando se cierre la ventana, desregistrarla del monitor
         MainWindow.destroyed.connect(lambda: self.nfc_monitor.unregister_window(MainWindow))
@@ -1486,34 +1443,6 @@ QPushButton:pressed, QPushButton:checked {
         
         # Show the QR
         qr_dialog.exec_()
-
-    def abrir_iframe(self, dialog):
-        dialog.close()
-        self.remove_blur_effect(self.centralwidget)
-        self.iframe_window = Iframe()
-        
-        main_window_rect = self.centralwidget.geometry()
-        main_window_center = main_window_rect.center()
-        
-        iframe_x = main_window_center.x() - (self.iframe_window.width() // 2)
-        iframe_y = main_window_center.y() - (self.iframe_window.height() // 2)
-
-        screen = QApplication.primaryScreen()
-        screen_geometry = screen.availableGeometry()
-        
-        iframe_x = max(screen_geometry.left(), min(iframe_x, screen_geometry.right() - self.iframe_window.width()))
-        iframe_y = max(screen_geometry.top(), min(iframe_y, screen_geometry.bottom() - self.iframe_window.height()))
-
-        self.iframe_window.move(iframe_x, iframe_y)
-        self.apply_blur_effect(self.centralwidget)
-
-        self.iframe_window.closeEvent = self.on_iframe_close
-
-        self.iframe_window.show()
-
-    def on_iframe_close(self, event):
-        self.remove_blur_effect(self.centralwidget)
-        event.accept()
 
     def apply_blur_effect(self, widget):
         self.blur_effect = QGraphicsBlurEffect()

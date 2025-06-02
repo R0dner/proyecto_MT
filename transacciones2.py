@@ -98,75 +98,45 @@ class Ui_MainWindow(object):
             os.path.join(video_dir, "promov3.mp4")
         ]
         
-        self.nfc_reader = NFCReader()
-        self.cardmonitor = CardMonitor()
-        self.cardmonitor.addObserver(self.nfc_reader)
-        self.nfc_reader.uid_detected.connect(self.show_loading_dialog)
-        self.nfc_reader.card_error.connect(self.show_error_message)
-        self.nfc_reader.card_removed.connect(self.handle_card_removal)
+        # Usar el singleton del monitor NFC
+        self.nfc_monitor = NFCMonitorSingleton.get_instance()
+        self.nfc_monitor.register_carousel(self)
+        
+        # Conectar señales del monitor NFC
+        self.nfc_monitor.uid_detected.connect(self.handle_uid_detected)
+        self.nfc_monitor.card_error.connect(self.show_error_message)
+        self.nfc_monitor.card_removed.connect(self.handle_card_removal)
         
         self.instance = None
         self.media_player = None
         self.video_frame = None
         self.timer = None
         self.saldo_window = None
+        self.loading_dialog = None
+
+    def handle_uid_detected(self, uid):
+        # Obtener datos de la API
+        result = self.get_data_from_api(uid)
+        
+        if isinstance(result, tuple):
+            name, last_name, document, profile_name, balance, card_status = result
+            self.show_loading_dialog(uid, name, last_name, document, profile_name, balance, card_status)
+        else:
+            self.show_error_message("Tarjeta externa: \n Esta tarjeta no pertenece al sistema")
 
     def handle_card_removal(self):
-            # Mostrar mensaje de que se retiró la tarjeta
-            self.show_error_message("Se ha retirado la tarjeta\nCerrando ventanas...")
-            
-            # Cerrar todas las ventanas excepto el carrusel
-            if hasattr(self, 'saldo_window') and self.saldo_window:
-                self.saldo_window.close()
-                self.saldo_window = None
-            
-            # Reanudar el video si estaba pausado
+        # Solo pausar el video si hay ventanas abiertas además del carrusel
+        if hasattr(self, 'saldo_window') and self.saldo_window:
             if self.media_player:
-                self.media_player.play()
+                self.media_player.play()  # Reanudar el video si estaba pausado
+            
+            # Mostrar mensaje de cierre automático sin botones
+            self.nfc_monitor.show_auto_close_message("Se ha retirado la tarjeta\nCerrando ventanas...")
 
     def show_error_message(self, message):
-        error_dialog = QMessageBox()
-        error_dialog.setIcon(QMessageBox.NoIcon)
-       
-        error_dialog.setStyleSheet("""
-            QMessageBox {
-                background-color: #f0f0f0;
-                text-align: center;
-            }
-            QMessageBox QLabel {
-                color: #333333;
-                font-size: 24px;
-                font-weight: bold;
-                padding: 30px;
-                min-width: 400px;
-                max-width: 100px;
-                text-align: center;
-                qproperty-alignment: AlignCenter;
-            }
-            QMessageBox QPushButton {
-                background-color: #DC3545;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 4px;
-                min-width: 40px;
-                text-align: center;
-            }
-            QMessageBox QPushButton:hover {
-                background-color: #C82333;
-            }
-        """)
-        formatted_message = message.replace("\n", "<br>")
-        error_dialog.setText(formatted_message)
-        error_dialog.setWindowTitle("Advertencia")
-        error_dialog.setStandardButtons(QMessageBox.Ok)
-        
-        error_dialog.setGeometry(350, 400, 300, 200)
-        error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
-        
-        error_dialog.exec_()
-    
+        # Mostrar mensaje de error sin botón OK
+        self.nfc_monitor.show_auto_close_message(message)
+
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
@@ -245,7 +215,10 @@ class Ui_MainWindow(object):
         self.saldo_ui.setupUi(self.saldo_window)
         self.saldo_window.resize(1280, 1024)
         
-        self.saldo_window.destroyed.connect(self.resume_video)
+        # Registrar la ventana de saldo en el monitor NFC
+        self.nfc_monitor.register_window(self.saldo_window)
+        
+        self.saldo_window.destroyed.connect(lambda: self.on_saldo_window_closed())
         
         self.saldo_ui.update_uid(uid)
         self.saldo_ui.update_name(name, last_name)  
@@ -255,60 +228,16 @@ class Ui_MainWindow(object):
         self.saldo_ui.update_card_status(card_status)   
         self.saldo_window.show()
 
+    def on_saldo_window_closed(self):
+        # Desregistrar la ventana cuando se cierra
+        self.nfc_monitor.unregister_window(self.saldo_window)
+        self.saldo_window = None
+        self.resume_video()
+
     def resume_video(self):
         if self.media_player:
             self.media_player.play()
             print("Reanudando reproducción de video...")
-        self.saldo_window = None
-
-class NFCReader(CardObserver, QObject):
-    uid_detected = Signal(str, str, str, str, str, str, str) 
-    card_error = Signal(str)
-    card_removed = Signal()  # Nueva señal para detectar cuando se quita la tarjeta
-
-    def __init__(self):
-        CardObserver.__init__(self)
-        QObject.__init__(self)
-        self.cards = []
-        self.card_read = False
-        self.uid = None
-        self.last_read_time = None
-        self.api_client = ApiClient("https://cmisocket.miteleferico.bo")
-
-    def update(self, observable, actions):
-        (addedcards, removedcards) = actions
-        for card in addedcards:
-            if card not in self.cards:
-                self.cards.append(card)
-                if not self.card_read:
-                    self.read_uid(card)
-                    self.card_read = True
-                    self.last_read_time = time.time()
-
-        for card in removedcards:
-            if card in self.cards:
-                self.cards.remove(card)
-                self.card_read = False
-                # Emitir señal cuando se quita la tarjeta
-                self.card_removed.emit()
-
-    def read_uid(self, card):
-        try:
-            connection = card.createConnection()
-            connection.connect()
-            time.sleep(0.5) 
-            response, sw1, sw2 = connection.transmit(getuid)
-            self.uid = toHexString(response).replace(" ", "").upper()
-            result = self.get_data_from_api(self.uid)
-            
-            if isinstance(result, tuple):
-                name, last_name, document, profile_name, balance, card_status = result
-                self.uid_detected.emit(self.uid, name, last_name, document, profile_name, balance, card_status)
-            else:
-                self.card_error.emit("Tarjeta externa: \n Esta tarjeta no pertenece al sistema")
-            
-        except CardConnectionException:
-            self.card_error.emit("Error de lectura: No se pudo leer la tarjeta")
 
     def get_data_from_api(self, uid):
         url = "https://cmisocket.miteleferico.bo/api/v1/billetaje/info-card"
@@ -345,6 +274,144 @@ class NFCReader(CardObserver, QObject):
         except Exception as e:
             print(f"\nError en la solicitud: {str(e)}")
             return None
+
+class NFCMonitor(QObject):
+    uid_detected = Signal(str)
+    card_error = Signal(str)
+    card_removed = Signal()
+    
+    def __init__(self):
+        super().__init__()
+        self.nfc_reader = NFCReader()
+        self.cardmonitor = CardMonitor()
+        self.cardmonitor.addObserver(self.nfc_reader)
+        
+        # Conectar señales del lector a las señales del monitor
+        self.nfc_reader.uid_detected.connect(self.uid_detected)
+        self.nfc_reader.card_error.connect(self.card_error)
+        self.nfc_reader.card_removed.connect(self.handle_card_removal)
+        
+        # Lista de ventanas registradas para cerrar
+        self.windows_to_close = []
+        self.carousel_window = None
+        self.error_dialog = None
+        
+        # Estilo para mensajes
+        self.message_style = """
+            QMessageBox {
+                background-color: #f0f0f0;
+                text-align: center;
+            }
+            QMessageBox QLabel {
+                color: #333333;
+                font-size: 24px;
+                font-weight: bold;
+                padding: 30px;
+                min-width: 400px;
+                max-width: 100px;
+                text-align: center;
+                qproperty-alignment: AlignCenter;
+            }
+        """
+    
+    def register_carousel(self, carousel_window):
+        self.carousel_window = carousel_window
+    
+    def register_window(self, window):
+        if window not in self.windows_to_close:
+            self.windows_to_close.append(window)
+    
+    def unregister_window(self, window):
+        if window in self.windows_to_close:
+            self.windows_to_close.remove(window)
+    
+    def handle_card_removal(self):
+        self.card_removed.emit()
+        if len(self.windows_to_close) > 0:
+            self.show_auto_close_message("Se ha retirado la tarjeta\nCerrando ventanas...")
+    
+    def show_auto_close_message(self, message):
+        # Cerrar diálogo anterior si existe
+        if self.error_dialog:
+            self.error_dialog.close()
+        
+        # Crear nuevo diálogo sin botones
+        self.error_dialog = QMessageBox()
+        self.error_dialog.setIcon(QMessageBox.NoIcon)
+        self.error_dialog.setStyleSheet(self.message_style)
+        
+        formatted_message = message.replace("\n", "<br>")
+        self.error_dialog.setText(formatted_message)
+        self.error_dialog.setWindowTitle("Información")
+        self.error_dialog.setStandardButtons(QMessageBox.NoButton)
+        
+        self.error_dialog.setGeometry(350, 400, 300, 200)
+        self.error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        
+        # Mostrar el diálogo
+        self.error_dialog.show()
+        
+        # Configurar temporizador para cerrar automáticamente después de 3 segundos
+        QTimer.singleShot(3000, self.close_message_and_windows)
+    
+    def close_message_and_windows(self):
+        if self.error_dialog:
+            self.error_dialog.close()
+            self.error_dialog = None
+        
+        # Cerrar todas las ventanas registradas
+        for window in self.windows_to_close[:]:
+            if window != self.carousel_window and hasattr(window, 'close'):
+                window.close()
+        self.windows_to_close = [w for w in self.windows_to_close if w == self.carousel_window]
+
+class NFCMonitorSingleton:
+    _instance = None
+    
+    @staticmethod
+    def get_instance():
+        if NFCMonitorSingleton._instance is None:
+            NFCMonitorSingleton._instance = NFCMonitor()
+        return NFCMonitorSingleton._instance
+
+class NFCReader(CardObserver, QObject):
+    uid_detected = Signal(str)
+    card_error = Signal(str)
+    card_removed = Signal()
+
+    def __init__(self):
+        CardObserver.__init__(self)
+        QObject.__init__(self)
+        self.cards = []
+        self.card_read = False
+        self.uid = None
+        self.last_read_time = None
+
+    def update(self, observable, actions):
+        (addedcards, removedcards) = actions
+        for card in addedcards:
+            if card not in self.cards:
+                self.cards.append(card)
+                if not self.card_read:
+                    try:
+                        connection = card.createConnection()
+                        connection.connect()
+                        time.sleep(0.5)
+                        response, sw1, sw2 = connection.transmit(getuid)
+                        self.uid = toHexString(response).replace(" ", "").upper()
+                        self.uid_detected.emit(self.uid)
+                        self.card_read = True
+                        self.last_read_time = time.time()
+                    except CardConnectionException:
+                        self.card_error.emit("Error de lectura: No se pudo leer la tarjeta")
+                    except Exception as e:
+                        self.card_error.emit(f"Error: {str(e)}")
+
+        for card in removedcards:
+            if card in self.cards:
+                self.cards.remove(card)
+                self.card_read = False
+                self.card_removed.emit()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
