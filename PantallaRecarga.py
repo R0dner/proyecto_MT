@@ -27,7 +27,7 @@ class Ui_Recarga(QObject):
         
         # El NFCMonitor se encargará de cerrar todas las ventanas registradas
 
-    def show_error_message(self, message):
+    def show_error_message(self, message):          
         # Mostrar mensaje de error con el estilo del monitor NFC
         self.nfc_monitor.show_auto_close_message(message)
 
@@ -1094,24 +1094,92 @@ QPushButton:pressed, QPushButton:checked {
         }
         """)
         
-        uid_label = QLabel(f" {uid}", self.tarjeta)
-        datosFactura_label = QLabel(f" {numero_ci} - {razon_social}", self.tarjeta)
+        def balance_text_lines(text, max_chars_per_line=27):
+
+            if len(text) <= max_chars_per_line:
+                return text
+            mid_point = len(text) // 2
+            split_pos = -1
+            search_range = min(8, mid_point) 
+            
+            for i in range(search_range):
+                if mid_point - i > 0 and text[mid_point - i] == ' ':
+                    split_pos = mid_point - i
+                    break
+                if mid_point + i < len(text) and text[mid_point + i] == ' ':
+                    split_pos = mid_point + i
+                    break
+            if split_pos == -1:
+                split_pos = text.rfind(' ', 0, max_chars_per_line)
+                if split_pos == -1:
+                    split_pos = max_chars_per_line
+            
+            line1 = text[:split_pos].strip()
+            line2 = text[split_pos:].strip()
+            
+            return f"{line1}\n{line2}"
+        
+        max_chars_per_line = 27  
+        invoice_data = f"{numero_ci} - {razon_social}"
+        invoice_data_display = balance_text_lines(invoice_data, max_chars_per_line)
+
+        # Etiquetas de título
+        QLabel("Datos de Factura:", self.tarjeta).setGeometry(QRect(50, 30, 150, 20))
+        QLabel("Monto de Recarga:", self.tarjeta).setGeometry(QRect(380, 30, 150, 20))
+        QLabel("Número de Tarjeta:", self.tarjeta).setGeometry(QRect(50, 120, 150, 20))
+
+        # Datos principales
+        datosFactura_label = QLabel(invoice_data_display, self.tarjeta)
+        datosFactura_label.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        datosFactura_label.setGeometry(QRect(50, 50, 280, 60)) 
+        datosFactura_label.setWordWrap(True)
+        datosFactura_label.setAlignment(Qt.AlignTop)
+
         monto_label = QLabel(f"Bs. {monto}", self.tarjeta)
+        monto_label.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        monto_label.setGeometry(QRect(380, 50, 150, 30)) 
 
-        uid_label.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")
-        datosFactura_label.setStyleSheet("color: white; font-size: 21px;")
-        monto_label.setStyleSheet("color: white; font-size: 21px;")
+        uid_label = QLabel(f"{uid}", self.tarjeta)
+        uid_label.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
+        uid_label.setGeometry(QRect(50, 140, 450, 30))  
 
-        uid_label.setGeometry(QRect(140, 130, 300, 40))
-        datosFactura_label.setGeometry(QRect(50, 60, 400, 30))
-        monto_label.setGeometry(QRect(345, 60, 70, 30))
+        teleferico_label = QLabel(self.tarjeta)
+        teleferico_label.setGeometry(QRect(420, 120, 80, 60))
+        
+        teleferico_svg = """
+        <svg fill="#f3f2f2" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
+        stroke="#f3f2f2"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" 
+        stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="M45.0625 1.875L28.40625 5.96875L20.75 7.875C21.492188 
+        7.582031 22 6.84375 22 6C22 4.894531 21.105469 4 20 4C18.894531 4 18 4.894531 18 6C18 7.105469 18.894531 8 20 8C20.136719 
+        8 20.277344 7.996094 20.40625 7.96875L4.4375 11.9375L4.9375 13.875L24.5 9.03125C25.335938 10.523438 27.484375 15.21875 
+        24.46875 20L18 20L18 22L32 22L32 20L26.71875 20C29.121094 15.222656 27.488281 10.609375 26.46875 8.53125L45.5625 3.8125 Z M 
+        28.40625 5.96875C29.316406 5.78125 30 4.964844 30 4C30 2.894531 29.105469 2 28 2C26.894531 2 26 2.894531 26 4C26 5.105469
+        26.894531 6 28 6C28.136719 6 28.277344 5.996094 28.40625 5.96875 Z M 13.34375 24L13.0625 24.28125C13.0625 24.28125 
+        12 25.328125 11 27.28125C10 29.234375 9 32.164063 9 36C9 39.835938 10 42.765625 11 44.71875C12 46.671875 13.0625
+        47.71875 13.0625 47.71875L13.34375 48L36.65625 48L36.96875 47.71875C36.96875 47.71875 41 43.570313 41 36C41 28.429688
+        36.96875 24.28125 36.96875 24.28125L36.65625 24 Z M 14.25 26L24 26L24 35L11.03125 35C11.175781 32.007813 11.960938 
+        29.765625 12.75 28.21875C13.527344 26.699219 14.097656 26.15625 14.25 26 Z M 26 26L35.71875 26C36.039063 26.332031 
+        38.691406 29.171875 38.96875 35L26 35 Z M 11.03125 37L38.96875 37C38.691406 42.828125 36.039063 45.667969 35.71875
+        46L14.25 46C14.097656 45.84375 13.527344 45.300781 12.75 43.78125C11.960938 42.234375 11.175781 39.992188 11.03125 37Z">
+        </path></g></svg>
+        """
+        try:
+            svg_renderer = QSvgRenderer(QByteArray(teleferico_svg.encode()))
+            pixmap = QPixmap(80, 60)
+            pixmap.fill(Qt.transparent) 
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing) 
+            svg_renderer.render(painter)
+            painter.end()
+            teleferico_label.setPixmap(pixmap)
+        except Exception as e:
+            print(f"Error al renderizar SVG: {e}")
+            teleferico_label.setText("🚠")
+            teleferico_label.setStyleSheet("color: white; font-size: 24px;")
+            teleferico_label.setAlignment(Qt.AlignCenter)
 
-        QLabel("Número de Tarjeta:", self.tarjeta).setGeometry(QRect(200, 110, 150, 20))
-        QLabel("Datos de Factura:", self.tarjeta).setGeometry(QRect(90, 40, 150, 20))
-        QLabel("Monto de Recarga:", self.tarjeta).setGeometry(QRect(310, 40, 150, 20))
-
-        for label in self.tarjeta.findChildren(QLabel)[3:]:
-            label.setStyleSheet("color: white; font-size: 18px;")
+        for label in self.tarjeta.findChildren(QLabel)[:3]: 
+            label.setStyleSheet("color: #BDC3C7; font-size: 18px; font-weight: normal;")
             
         Cancelar = QPushButton("  Cancelar", pago_dialog)
         Cancelar.setFixedSize(200, 50)
@@ -1131,12 +1199,11 @@ QPushButton:pressed, QPushButton:checked {
         Cancelar.clicked.connect(lambda: self.close_dialog_and_remove_blur(pago_dialog))
         
         cancel_svg = """
-        <svg viewBox="0 0 1024 1024" class="icon" version="1.1" xmlns="http://www.w3.org/2000/svg" fill="#ffffff" stroke="#ffffff">
-            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-            <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
-            <g id="SVGRepo_iconCarrier"><path d="M704 288h-281.6l177.6-202.88a32 32 0 0 0-48.32-42.24l-224 256a30.08 30.08 0 0 0-2.24 3.84 32 32 0 0 0-2.88 4.16v1.92a32 32 0 0 0 0 5.12A32 32 0 0 0 320 320a32 32 0 0 0 0 4.8 32 32 0 0 0 0 5.12v1.92a32 32 0 0 0 2.88 4.16 30.08 30.08 0 0 0 2.24 3.84l224 256a32 32 0 1 0 48.32-42.24L422.4 352H704a224 224 0 0 1 224 224v128a224 224 0 0 1-224 224H320a232 232 0 0 1-28.16-1.6 32 32 0 0 0-35.84 27.84 32 32 0 0 0 27.84 35.52A295.04 295.04 0 0 0 320 992h384a288 288 0 0 0 288-288v-128a288 288 0 0 0-288-288zM103.04 760a32 32 0 0 0-62.08 16A289.92 289.92 0 0 0 140.16 928a32 32 0 0 0 40-49.92 225.6 225.6 0 0 1-77.12-118.08zM64 672a32 32 0 0 0 22.72-9.28 37.12 37.12 0 0 0 6.72-10.56A32 32 0 0 0 96 640a33.6 33.6 0 0 0-9.28-22.72 32 32 0 0 0-10.56-6.72 32 32 0 0 0-34.88 6.72A32 32 0 0 0 32 640a32 32 0 0 0 2.56 12.16 37.12 37.12 0 0 0 6.72 10.56A32 32 0 0 0 64 672z" fill="#ffffff"></path></g>
+        <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="#ffffff"/>
         </svg>
         """
+        # icono SVG al botón Cancelar
         self.add_svg_icon(Cancelar, cancel_svg)
         
         PagoTarjeta = QPushButton("Solicitar Recarga", pago_dialog)
@@ -1160,14 +1227,11 @@ QPushButton:pressed, QPushButton:checked {
         ))
         
         card_svg = """
-        <svg fill="#f8f1f1" viewBox="0 0 512 512" enable-background="new 0 0 512 512" id="Credit_x5F_card" version="1.1" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke="#f8f1f1">
-            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-            <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
-            <g id="SVGRepo_iconCarrier"> <g> <path d="M127.633,215.98h215.568c29.315,0,53.166,23.851,53.166,53.166v14.873h38.061c22.735,0,41.166-18.432,41.166-41.167 v-69.608H127.633V215.98z"></path> 
-            <path d="M434.428,74.2H168.799c-22.735,0-41.166,18.431-41.166,41.166v17.479h347.961v-17.479 C475.594,92.631,457.163,74.2,434.428,74.2z"></path> 
-            <path d="M343.201,227.98H77.572c-22.735,0-41.166,18.431-41.166,41.166v127.487c0,22.735,18.431,41.166,41.166,41.166h265.629 c22.736,0,41.166-18.431,41.166-41.166V269.146C384.367,246.412,365.938,227.98,343.201,227.98z M131.542,329.846 c0,4.92-3.989,8.909-8.909,8.909H75.289c-4.92,0-8.908-3.989-8.908-8.909v-29.098c0-4.921,3.988-8.909,8.908-8.909h47.344 c4.92,0,8.909,3.988,8.909,8.909V329.846z M300.961,413.039c-10.796,0-19.548-8.752-19.548-19.549s8.752-19.549,19.548-19.549 c10.797,0,19.549,8.752,19.549,19.549S311.758,413.039,300.961,413.039z M345.271,413.039c-10.797,0-19.549-8.752-19.549-19.549 s8.752-19.549,19.549-19.549c10.796,0,19.548,8.752,19.548,19.549S356.067,413.039,345.271,413.039z"></path> </g> </g>
+        <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" fill="#f8f1f1"/>
         </svg>
         """
+        # icono SVG al botón PagoTarjeta
         self.add_svg_icon(PagoTarjeta, card_svg)
 
         pago_dialog.exec_()
