@@ -9,14 +9,12 @@ from PIL import Image
 import io
 import time
 import os
-
 from smartcard.Card import Card
 from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.util import toHexString
 from smartcard.Exceptions import CardConnectionException
 import threading
 
-# Función para convertir imagen PIL a QImage para PySide2
 def pil_to_qimage(pil_image):
     buffer = io.BytesIO()
     pil_image.save(buffer, format='PNG')
@@ -26,7 +24,6 @@ def pil_to_qimage(pil_image):
     qimage = QImage.fromData(img_data)
     return qimage
 
-# Función para descargar una imagen desde una URL
 def download_image_from_url(url):
     try:
         response = requests.get(url)
@@ -40,20 +37,17 @@ def download_image_from_url(url):
     except Exception as e:
         print(f"Error al descargar imagen: {e}")
         return None
-
-# Singleton para NFCMonitor
+    
 class NFCMonitorSingleton:
     _instance = None
     
     @staticmethod
     def get_instance():
-        """Obtiene o crea una instancia única del monitor NFC"""
         if NFCMonitorSingleton._instance is None:
             from nfc_monitor import NFCMonitorSingleton as MainNFCMonitor
             return MainNFCMonitor.get_instance()
         return NFCMonitorSingleton._instance
 
-# Monitor NFC simplificado para casos donde no se puede importar el principal
 class SimpleNFCMonitor(QObject):
     card_removed = Signal()
     
@@ -71,7 +65,6 @@ class SimpleNFCMonitor(QObject):
             self.windows_to_close.remove(window)
             print(f"Ventana eliminada del monitor simple. Total: {len(self.windows_to_close)}")
 
-# Importamos la clase Lectura del segundo archivo (NFCHandler.py)
 class Lectura(CardObserver):
     def __init__(self, tabla_movimientos=None):
         super().__init__()
@@ -361,7 +354,6 @@ class QRDatosManager:
         img = qr.make_image(fill_color="black", back_color="white")
         return pil_to_qimage(img)
 
-
 class QRRechargeDialog(QDialog):
     def __init__(self, datos_manager, parent=None):
         super().__init__(parent)
@@ -369,25 +361,17 @@ class QRRechargeDialog(QDialog):
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
         self.setup_ui()
         self.show_loading_qr()
-        
-        # Registrar esta ventana con el monitor NFC
         self.nfc_monitor.register_window(self)
-        
-        # Conectar señal de tarjeta removida
         self.nfc_monitor.card_removed.connect(self.close_on_card_removal)
-        
-        # Iniciar proceso de solicitud
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_qr_status)
         self.timer.start(500)
 
     def close_on_card_removal(self):
-        """Cierra la ventana inmediatamente cuando se retira la tarjeta"""
         print("QR Dialog: Tarjeta removida detectada - Cerrando ventana QR")
         self.accept()
 
     def closeEvent(self, event):
-        """Sobrescribir el evento de cierre para desregistrar la ventana"""
         try:
             if hasattr(self, 'nfc_monitor') and self.nfc_monitor:
                 self.nfc_monitor.unregister_window(self)

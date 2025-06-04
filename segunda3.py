@@ -1185,3 +1185,27 @@ class Ui_MainWindow3(QObject):
         self.actualizar.setIcon(refresh_icon)
         self.actualizar.setIconSize(QSize(40, 40))
         
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    
+    # Obtener información de la pantalla principal
+    screen = app.primaryScreen()
+    screen_geometry = screen.geometry()
+    print(f"Resolución de pantalla: {screen_geometry.width()}x{screen_geometry.height()}")
+    
+    # Crear la ventana principal
+    MainWindow = QMainWindow()
+    ui = Ui_MainWindow3()
+    ui.setupUi(MainWindow)
+    
+    # Mostrar la ventana
+    MainWindow.show()
+    
+    # Centrar la ventana
+    window_size = MainWindow.size()
+    MainWindow.move(
+        (screen_geometry.width() - window_size.width()) // 2,
+        (screen_geometry.height() - window_size.height()) // 2
+    )
+    
+    sys.exit(app.exec_())

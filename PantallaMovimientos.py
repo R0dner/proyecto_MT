@@ -15,8 +15,10 @@ class Ui_Movimientos(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(1280, 1024)
-        MainWindow.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        # Dimensiones principales - Nueva resolución 1937x1100
+        MainWindow.resize(1937, 1100)
+        MainWindow.setFixedSize(1937, 1100)
+        MainWindow.setWindowFlags(Qt.FramelessWindowHint)
         
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
