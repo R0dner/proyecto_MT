@@ -1067,6 +1067,37 @@ QPushButton:pressed, QPushButton:checked {
         }
         """)
 
+        # Configurar el monitor NFC para cerrar la ventana automáticamente
+        try:
+            from nfc_monitor import NFCMonitorSingleton
+            nfc_monitor = NFCMonitorSingleton.get_instance()
+            nfc_monitor.register_window(pago_dialog)
+            
+            # Conectar la señal de tarjeta removida para cerrar el diálogo
+            def close_on_card_removal():
+                print("Confirmation Dialog: Tarjeta removida detectada - Cerrando ventana de confirmación")
+                self.close_dialog_and_remove_blur(pago_dialog)
+            
+            nfc_monitor.card_removed.connect(close_on_card_removal)
+            print("Ventana de confirmación registrada con el monitor NFC")
+        except Exception as e:
+            print(f"Advertencia: No se pudo conectar con el monitor NFC: {e}")
+
+        # Sobrescribir el método closeEvent del diálogo para desregistrar la ventana
+        original_close_event = pago_dialog.closeEvent
+        def custom_close_event(event):
+            try:
+                if 'nfc_monitor' in locals():
+                    nfc_monitor.unregister_window(pago_dialog)
+                    print("Ventana de confirmación desregistrada del monitor NFC")
+            except Exception as e:
+                print(f"Error al desregistrar ventana: {e}")
+            
+            # Llamar al método original
+            original_close_event(event)
+        
+        pago_dialog.closeEvent = custom_close_event
+
         header = QLabel(pago_dialog)
         header.setGeometry(0, 0, 750, 60)
         header.setStyleSheet("background-color: #2C3E50;")
@@ -1235,7 +1266,7 @@ QPushButton:pressed, QPushButton:checked {
         self.add_svg_icon(PagoTarjeta, card_svg)
 
         pago_dialog.exec_()
-
+    
     def procesar_recarga(self, dialog, uid, numero_ci, razon_social, complemento, correo, monto):
         dialog.close()
         self.apply_blur_effect(self.centralwidget)
@@ -1278,7 +1309,7 @@ QPushButton:pressed, QPushButton:checked {
     def mensaje_advertencia_correo_no_valido(self, message="El correo introducido no es valido"):
         self.apply_blur_effect(self.centralwidget)
 
-        msg = QDialog(self.centralwidget)
+        msg = QDialog(self.centralwidget)   
         msg.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         msg.setModal(True)
 
