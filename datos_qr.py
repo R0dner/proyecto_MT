@@ -493,13 +493,23 @@ class QRRechargeDialog(QDialog):
         self.qr_container.setPixmap(scaled_pixmap)
     
     def payment_completed(self):
-        QMessageBox.information(
-            self,
-            "Pago Confirmado",
-            "Gracias por confirmar tu pago. El proceso de recarga se completará en breves momentos.",
-            QMessageBox.Ok
-        )
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Pago Confirmado")
+        msg_box.setText("Gracias por confirmar tu pago. El proceso de recarga se completará en breves momentos.")
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        
+        ok_button = msg_box.button(QMessageBox.Ok)
+        ok_button.clicked.connect(lambda: self.close_main_window())
+        
+        msg_box.exec_()
         self.accept()
+
+    def close_main_window(self):
+        app = QApplication.instance()
+        for widget in app.topLevelWidgets():
+            if isinstance(widget,QMainWindow):
+                widget.close()
+                break
     
     def check_qr_status(self):
         if not hasattr(self, 'wait_counter'):

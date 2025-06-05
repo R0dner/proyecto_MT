@@ -861,7 +861,6 @@ class Ui_MainWindow3(QObject):
     def mostrar_ventana_movimientos(self):
         datos_tarjeta = self.lector_nfc.get_card_data()
         if not datos_tarjeta:
-            # Aplicar blur al fondo
             self.blur_effect.setBlurRadius(10)
             
             dialog = CustomInfoDialog("No se detectó la tarjeta", icono='error', parent=self.centralwidget)
@@ -871,31 +870,24 @@ class Ui_MainWindow3(QObject):
             
         uid = datos_tarjeta.get('uid', '')
             
-        # Verificar si hay movimientos antes de abrir la ventana
         movimientos = self.lector_nfc.get_movements_from_api(uid)
             
         if not movimientos or len(movimientos) == 0:
-            # Aplicar blur al fondo
+
             self.blur_effect.setBlurRadius(10)
             
             dialog = CustomInfoDialog("No tiene movimientos recientes", icono='info', parent=self.centralwidget)
             dialog.finished.connect(lambda: self.blur_effect.setBlurRadius(0))
             dialog.exec_()
             return
-            
-        # Si hay movimientos, entonces abrir la ventana
         self.ventana_movimientos = QMainWindow()
         self.ui_movimientos = Ui_Movimientos()
         self.ui_movimientos.setupUi(self.ventana_movimientos)
         self.ventana_movimientos.show()
         self.actualizar_etiquetas_movimientos()
-        
-        # Registrar la ventana de movimientos con el monitor NFC
         self.nfc_monitor.register_window(self.ventana_movimientos)
 
     def mostrar_mensaje_temporal(self, mensaje, duracion_ms=3000, icono='info'):
-        """Muestra un mensaje flotante temporal con estilo moderno"""
-        # Aplicar blur al fondo
         self.blur_effect.setBlurRadius(10)
         
         dialog = CustomInfoDialog(
@@ -930,11 +922,9 @@ class Ui_MainWindow3(QObject):
    
    
     def closeEvent(self, event):
-        # Desregistrar la ventana principal del monitor NFC
         if hasattr(self, 'nfc_monitor'):
             self.nfc_monitor.unregister_window(self.MainWindow)
-            
-        # Detener el monitoreo de la tarjeta original si es necesario
+
         self.monitor_tarjeta.deleteObserver(self.lector_nfc)
         super().closeEvent(event)
         
@@ -951,8 +941,6 @@ class Ui_MainWindow3(QObject):
         self.ui_recarga.setupUi(self.ventana_recarga)
         self.ventana_recarga.show()
         self.actualizar_etiquetas_recarga()
-        
-        # Registrar la ventana de recarga con el monitor NFC
         self.nfc_monitor.register_window(self.ventana_recarga)
         
     def mostrar_mensaje_error(self):
@@ -984,21 +972,16 @@ class Ui_MainWindow3(QObject):
         super().closeEvent(event)
         
     def refresh_window(self):
-        """Actualiza los datos de la tarjeta mostrados en la interfaz"""
         try:
-            # Deshabilitar botón temporalmente para evitar múltiples clics
             self.actualizar.setEnabled(False)
             self.actualizar.setText("Actualizando...")
             
-            # Obtener datos actuales de la tarjeta
             if hasattr(self.lector_nfc, 'get_card_data'):
                 datos_tarjeta = self.lector_nfc.get_card_data()
                 
                 if datos_tarjeta:
-                    # Actualizar interfaz principal
                     self.actualizar_interfaz(datos_tarjeta)
                     
-                    # Actualizar otras ventanas si están abiertas
                     if hasattr(self, 'ui_movimientos'):
                         self.actualizar_etiquetas_movimientos()
                     if hasattr(self, 'ui_recarga'):
@@ -1012,12 +995,11 @@ class Ui_MainWindow3(QObject):
             print(f"Error al actualizar: {e}")
             self.mostrar_mensaje_temporal("Error al actualizar", 2000)
         finally:
-            # Restaurar estado del botón
             self.actualizar.setEnabled(True)
             self.actualizar.setText("Actualizar Saldo")
 
     def actualizar_interfaz(self, datos_tarjeta):
-        """Actualiza los elementos de la interfaz principal"""
+        
         nombre_completo = f"{datos_tarjeta.get('name', '')} {datos_tarjeta.get('last_name', '')}".strip()
         self.editNombreUsuario.setText(nombre_completo)
         self.CiEdit.setText(f" {datos_tarjeta.get('document', '')}")
@@ -1029,7 +1011,7 @@ class Ui_MainWindow3(QObject):
         self.moneda.setText("Bs")
 
     def mostrar_mensaje_temporal(self, mensaje, duracion_ms):
-        """Muestra un mensaje flotante temporal"""
+
         msg = QLabel(mensaje, self.centralwidget)
         msg.setAlignment(Qt.AlignCenter)
         msg.setStyleSheet("""
@@ -1097,7 +1079,6 @@ class Ui_MainWindow3(QObject):
         self.estadoEdit.setText(QCoreApplication.translate("MainWindow", u" ", None))
         self.moneda.setText(QCoreApplication.translate("MainWindow", u"  Bs", None))
         self.saldo.setText(QCoreApplication.translate("MainWindow", u" ", None))
-    # retranslateUi
         
         umovimientos_svg_template = '''
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-table-properties">
@@ -1188,20 +1169,16 @@ class Ui_MainWindow3(QObject):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     
-    # Obtener información de la pantalla principal
     screen = app.primaryScreen()
     screen_geometry = screen.geometry()
     print(f"Resolución de pantalla: {screen_geometry.width()}x{screen_geometry.height()}")
     
-    # Crear la ventana principal
     MainWindow = QMainWindow()
     ui = Ui_MainWindow3()
     ui.setupUi(MainWindow)
-    
-    # Mostrar la ventana
+
     MainWindow.show()
     
-    # Centrar la ventana
     window_size = MainWindow.size()
     MainWindow.move(
         (screen_geometry.width() - window_size.width()) // 2,

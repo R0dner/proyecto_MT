@@ -1531,7 +1531,7 @@ QPushButton:pressed, QPushButton:checked {
         pago_dialog.close()
         
         # Create the QR dialog
-        qr_dialog = QRDialog(monto, parent=self.centralwidget)
+        qr_dialog = pago_dialog(monto, parent=self.centralwidget)
         
         # Connect the dialog's close event to remove blur
         qr_dialog.finished.connect(lambda: self.remove_blur_effect(self.centralwidget))
