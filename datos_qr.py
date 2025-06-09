@@ -546,7 +546,6 @@ class QRRechargeDialog(QDialog):
                 else:
                     self.status_label.setText("Error al generar el código QR")
 
-
 def solicitar_recarga(uid="", documento="", razon_social="", complemento="", correo="", monto="", parent_widget=None):
     try:
         datos_manager = QRDatosManager()

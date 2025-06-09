@@ -12,20 +12,402 @@ import re
 from datos_qr import solicitar_recarga
 from nfc_monitor import NFCMonitorSingleton
 
+
+class VirtualKeyboard(QDialog):
+    def __init__(self, parent=None, target_widget=None):
+        super().__init__(parent)
+        self.target_widget = target_widget
+        self.shift_pressed = False
+        self.caps_lock = False
+        self.key_buttons = []
+        self.is_closing = False
+        self.manually_closed_signal = None
+        self.setupUI()
+        
+        self.installEventFilter(self)
+        QApplication.instance().installEventFilter(self)
+        
+    def setupUI(self):
+        self.setWindowTitle("Teclado Virtual")
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setFixedSize(450, 280)
+        self.setStyleSheet("""
+            QDialog {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #34495e, stop:1 #2c3e50);
+                border-radius: 12px;
+                border: 2px solid #3498db;
+            }
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #5d6d7e, stop:1 #34495e);
+                color: white;
+                border: 1px solid #7f8c8d;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 2px;
+                min-width: 28px;
+                min-height: 28px;
+                margin: 1px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #7f8c8d, stop:1 #5d6d7e);
+                border: 1px solid #3498db;
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #2980b9, stop:1 #3498db);
+                border: 1px solid #85c1e9;
+            }
+            QPushButton[special="true"] {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #3498db, stop:1 #2980b9);
+                font-size: 10px;
+            }
+            QPushButton[special="true"]:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #5dade2, stop:1 #3498db);
+            }
+            QPushButton[special="true"]:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1b4f72, stop:1 #2980b9);
+            }
+            QPushButton[close="true"] {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #e74c3c, stop:1 #c0392b);
+                font-size: 11px;
+                font-weight: bold;
+                color: white;
+            }
+            QPushButton[close="true"]:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #ec7063, stop:1 #e74c3c);
+            }
+            QPushButton[close="true"]:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #a93226, stop:1 #922b21);
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(2)
+        layout.setContentsMargins(6, 6, 6, 6)
+        row1_keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '⌫']
+        row1_layout = self.create_row(row1_keys, key_width=30)
+        layout.addLayout(row1_layout)
+        row2_keys = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\']
+        row2_layout = self.create_row(row2_keys, key_width=30)
+        layout.addLayout(row2_layout)
+        row3_keys = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ñ', ';', "'"]
+        row3_layout = self.create_row(row3_keys, key_width=30)
+        layout.addLayout(row3_layout)
+        row4_keys = ['Shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/']
+        row4_layout = self.create_row(row4_keys, key_width=30)
+        layout.addLayout(row4_layout)
+        row5_keys = ['@', '#', '$', '%', '&', '*', '(', ')', '_', '+', '{', '}']
+        row5_layout = self.create_row(row5_keys, key_width=30)
+        layout.addLayout(row5_layout)
+        row6_layout = QHBoxLayout()
+        row6_layout.setSpacing(2)
+        self.space_btn = QPushButton("Espacio")
+        self.space_btn.setProperty("special", "true")
+        self.space_btn.setFixedSize(200, 28)
+        self.space_btn.clicked.connect(self.space_pressed)
+        row6_layout.addWidget(self.space_btn)
+        row6_layout.addSpacing(10)
+        self.close_btn = QPushButton("✕ CERRAR")
+        self.close_btn.setProperty("close", "true")
+        self.close_btn.setFixedSize(100, 28)
+        self.close_btn.clicked.connect(self.close_keyboard_from_button)  
+        row6_layout.addWidget(self.close_btn)
+        
+        layout.addLayout(row6_layout)
+        
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.MouseButtonPress:
+            if not self.is_closing:
+                if not self.geometry().contains(event.globalPos()):
+                    if self.target_widget:
+                        target_global_rect = QRect(
+                            self.target_widget.mapToGlobal(self.target_widget.rect().topLeft()),
+                            self.target_widget.size()
+                        )
+                        if not target_global_rect.contains(event.globalPos()):
+                            QTimer.singleShot(50, self.close_keyboard_manually)
+                    else:
+                        QTimer.singleShot(50, self.close_keyboard_manually)
+        
+        return super().eventFilter(obj, event)
+    
+    def create_row(self, keys, key_width=30):
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(1)
+        
+        for key in keys:
+            if key == '⌫':
+                btn = QPushButton(key)
+                btn.setProperty("special", "true")
+                btn.setFixedSize(key_width + 10, 28)
+                btn.clicked.connect(self.backspace)
+            elif key == 'Enter':
+                btn = QPushButton(key)
+                btn.setProperty("special", "true")
+                btn.setFixedSize(key_width + 15, 28)
+                btn.clicked.connect(self.enter_pressed)
+            elif key == 'Shift':
+                btn = QPushButton(key)
+                btn.setProperty("special", "true")
+                btn.setFixedSize(key_width + 15, 28)
+                btn.setCheckable(True)
+                btn.toggled.connect(self.toggle_shift)
+                self.shift_btn = btn
+            elif key == '↑':
+                btn = QPushButton(key)
+                btn.setProperty("special", "true")
+                btn.setFixedSize(key_width, 28)
+                btn.clicked.connect(self.move_cursor_up)
+            else:
+                btn = QPushButton(key.upper() if self.shift_pressed or self.caps_lock else key)
+                btn.setFixedSize(key_width, 28)
+                btn.clicked.connect(lambda checked=False, k=key: self.key_pressed(k))
+                btn.original_key = key
+                self.key_buttons.append(btn)
+            
+            row_layout.addWidget(btn)
+            
+        return row_layout
+    
+    def key_pressed(self, key):
+        if key.isalpha():
+            char = key.upper() if self.shift_pressed or self.caps_lock else key
+        else:
+            shift_chars = {
+                '1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+                '6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+                '-': '_', '=': '+', '[': '{', ']': '}',
+                ';': ':', "'": '"', ',': '<', '.': '>', '/': '?',
+                '\\': '|'
+            }
+            if self.shift_pressed and key in shift_chars:
+                char = shift_chars[key]
+            else:
+                char = key
+                
+        self.insert_text(char)
+        
+        if self.shift_pressed and not self.caps_lock:
+            self.shift_pressed = False
+            if hasattr(self, 'shift_btn'):
+                self.shift_btn.setChecked(False)
+            self.update_key_labels()
+    
+    def space_pressed(self):
+        self.insert_text(" ")
+    
+    def enter_pressed(self):
+        self.insert_text("\n")
+    
+    def toggle_shift(self, checked):
+        self.shift_pressed = checked
+        self.update_key_labels()
+        
+    def toggle_caps(self, checked):
+        self.caps_lock = checked
+        self.update_key_labels()
+    
+    def move_cursor_left(self):
+        if self.target_widget:
+            cursor = self.target_widget.textCursor()
+            cursor.movePosition(QTextCursor.Left)
+            self.target_widget.setTextCursor(cursor)
+    
+    def move_cursor_right(self):
+        if self.target_widget:
+            cursor = self.target_widget.textCursor()
+            cursor.movePosition(QTextCursor.Right)
+            self.target_widget.setTextCursor(cursor)
+    
+    def move_cursor_up(self):
+        if self.target_widget:
+            cursor = self.target_widget.textCursor()
+            cursor.movePosition(QTextCursor.Up)
+            self.target_widget.setTextCursor(cursor)
+    
+    def move_cursor_down(self):
+        if self.target_widget:
+            cursor = self.target_widget.textCursor()
+            cursor.movePosition(QTextCursor.Down)
+            self.target_widget.setTextCursor(cursor)
+        
+    def update_key_labels(self):
+        for btn in self.key_buttons:
+            if hasattr(btn, 'original_key'):
+                key = btn.original_key
+                if key.isalpha():
+                    if self.shift_pressed or self.caps_lock:
+                        btn.setText(key.upper())
+                    else:
+                        btn.setText(key.lower())
+                else:
+                    shift_chars = {
+                        '1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+                        '6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+                        '-': '_', '=': '+', '[': '{', ']': '}',
+                        ';': ':', "'": '"', ',': '<', '.': '>', '/': '?',
+                        '\\': '|'
+                    }
+                    if self.shift_pressed and key in shift_chars:
+                        btn.setText(shift_chars[key])
+                    else:
+                        btn.setText(key)
+    
+    def insert_text(self, text):
+        if self.target_widget:
+            cursor = self.target_widget.textCursor()
+            cursor.insertText(text)
+            self.target_widget.setTextCursor(cursor)
+            
+    def backspace(self):
+        if self.target_widget:
+            cursor = self.target_widget.textCursor()
+            cursor.deletePreviousChar()
+            self.target_widget.setTextCursor(cursor)
+    
+    def close_keyboard_from_button(self):
+        if not self.is_closing:
+            QTimer.singleShot(50, self.close_keyboard_manually)
+    
+    def close_keyboard_manually(self):
+        if self.is_closing:
+            return
+            
+        if self.manually_closed_signal:
+            self.manually_closed_signal()
+            
+        self.close_keyboard()
+    
+    def close_keyboard(self):
+        if self.is_closing:
+            return
+            
+        self.is_closing = True
+        
+        QApplication.instance().removeEventFilter(self)
+        
+        if self.target_widget and hasattr(self.target_widget, 'keyboard'):
+            self.target_widget.keyboard = None
+            
+        self.close()
+        self.deleteLater()
+        
+    def closeEvent(self, event):
+        QApplication.instance().removeEventFilter(self)
+        
+        if self.target_widget and hasattr(self.target_widget, 'keyboard'):
+            self.target_widget.keyboard = None
+        event.accept()
+
+
+class CustomTextEdit(QTextEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.keyboard = None
+        self.focus_timer = QTimer()
+        self.focus_timer.setSingleShot(True)
+        self.focus_timer.timeout.connect(self.delayed_keyboard_check)
+        self.keyboard_manually_closed = False
+        
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        if not self.keyboard_manually_closed:
+            self.show_keyboard()
+        
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self.focus_timer.start(150)
+        
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if self.keyboard_manually_closed:
+            self.keyboard_manually_closed = False
+            self.show_keyboard()
+        
+    def delayed_keyboard_check(self):
+        current_focus = QApplication.focusWidget()
+        
+        if isinstance(current_focus, (QPushButton, CustomTextEdit)):
+            return
+            
+        if self.keyboard and self.keyboard.isVisible():
+            keyboard_widgets = self.keyboard.findChildren(QPushButton)
+            if current_focus in keyboard_widgets:
+                return
+                
+        if not self.keyboard_manually_closed:
+            self.hide_keyboard()
+        
+    def show_keyboard(self):
+        if hasattr(self.parent(), 'close_all_keyboards'):
+            self.parent().close_all_keyboards()
+            
+        if not self.keyboard or not self.keyboard.isVisible():
+            if self.keyboard:
+                self.keyboard.close()
+                
+            self.keyboard = VirtualKeyboard(self.parent(), self)
+            self.keyboard.manually_closed_signal = self.on_keyboard_manually_closed
+            self.position_keyboard_fixed()
+            self.keyboard.show()
+        
+    def on_keyboard_manually_closed(self):
+        self.keyboard_manually_closed = True
+        
+    def position_keyboard_fixed(self):
+        if not self.keyboard:
+            return
+            
+        parent_window = self.window()
+        fixed_x = 80  
+        fixed_y = 600  
+
+        parent_pos = parent_window.mapToGlobal(QPoint(0, 0))
+
+        final_x = parent_pos.x() + fixed_x
+        final_y = parent_pos.y() + fixed_y
+        screen_geometry = QApplication.primaryScreen().availableGeometry()
+        if final_x + self.keyboard.width() > screen_geometry.right():
+            final_x = screen_geometry.right() - self.keyboard.width() - 10
+            
+        if final_x < screen_geometry.left():
+            final_x = screen_geometry.left() + 10
+            
+        if final_y + self.keyboard.height() > screen_geometry.bottom():
+            final_y = screen_geometry.bottom() - self.keyboard.height() - 10
+            
+        if final_y < screen_geometry.top():
+            final_y = screen_geometry.top() + 10
+            
+        self.keyboard.move(final_x, final_y)
+        
+    def hide_keyboard(self):
+        if self.keyboard and not self.keyboard.is_closing:
+            self.keyboard.close_keyboard()
+            
+    def close_all_keyboards(self):
+        if self.keyboard and not self.keyboard.is_closing:
+            self.keyboard.close_keyboard()
+            
 class Ui_Recarga(QObject):
     def __init__(self):
         super().__init__()
-        # Usar el singleton del monitor NFC
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
-        # Conectar señales del monitor NFC
         self.nfc_monitor.card_removed.connect(self.handle_card_removal)
         self.nfc_monitor.card_error.connect(self.show_error_message)
 
     def handle_card_removal(self):
-        # Mostrar mensaje de que se retiró la tarjeta
         self.show_error_message("Se ha retirado la tarjeta\nCerrando ventana de recarga...")
-        
-        # El NFCMonitor se encargará de cerrar todas las ventanas registradas
 
     def show_error_message(self, message):          
         # Mostrar mensaje de error con el estilo del monitor NFC
@@ -33,12 +415,8 @@ class Ui_Recarga(QObject):
 
     def setupUi(self, MainWindow):
         self.MainWindow = MainWindow
-        
-        # Registrar esta ventana con el monitor NFC
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
         self.nfc_monitor.register_window(MainWindow)
-        
-        # Cuando se cierre la ventana, desregistrarla del monitor
         MainWindow.destroyed.connect(lambda: self.nfc_monitor.unregister_window(MainWindow))
         
         if not MainWindow.objectName():
@@ -926,7 +1304,7 @@ QPushButton:pressed, QPushButton:checked {
         self.recargaOk.raise_()
         self.tarjeta.raise_()
         
-        self.NumeroCiEdit = QTextEdit(self.centralwidget)
+        self.NumeroCiEdit = CustomTextEdit(self.centralwidget)
         self.NumeroCiEdit.setObjectName(u"NumeroCi")
         self.NumeroCiEdit.setGeometry(QRect(696, 618.8, 220, 47)) 
         self.NumeroCiEdit.setStyleSheet(u"""
@@ -941,7 +1319,7 @@ QPushButton:pressed, QPushButton:checked {
             }
         """)
         
-        self.ComplementoEdit = QTextEdit(self.centralwidget)
+        self.ComplementoEdit = CustomTextEdit(self.centralwidget)
         self.ComplementoEdit.setObjectName(u"ComplementoEdit")
         self.ComplementoEdit.setGeometry(QRect(1040, 618.8, 120, 47))
         self.ComplementoEdit.setStyleSheet(u"""
@@ -956,7 +1334,7 @@ QPushButton:pressed, QPushButton:checked {
             }
         """)
         
-        self.RazonSocialEdit = QTextEdit(self.centralwidget)
+        self.RazonSocialEdit = CustomTextEdit(self.centralwidget)
         self.RazonSocialEdit.setObjectName(u"RazonSocialEdit")
         self.RazonSocialEdit.setGeometry(QRect(696, 725.9, 365, 47))      
         self.RazonSocialEdit.setStyleSheet(u"""
@@ -971,7 +1349,7 @@ QPushButton:pressed, QPushButton:checked {
             }
         """)
         
-        self.CorreoEdit = QTextEdit(self.centralwidget)
+        self.CorreoEdit = CustomTextEdit(self.centralwidget)
         self.CorreoEdit.setObjectName(u"CorreoEdit")
         self.CorreoEdit.setGeometry(QRect(696, 833, 365, 47))
         self.CorreoEdit.setStyleSheet(u"""
@@ -1041,6 +1419,12 @@ QPushButton:pressed, QPushButton:checked {
         
         self.DocIenRaButt.toggled.connect(self.toggle_documento_identidad)
         self.NitRadButt.toggled.connect(self.toggle_nit)
+
+    def close_all_keyboards(self):
+        for widget in [self.NumeroCiEdit, self.ComplementoEdit, 
+                      self.RazonSocialEdit, self.CorreoEdit]:
+            if hasattr(widget, 'hide_keyboard'):
+                widget.hide_keyboard()
 
     def actualizar_etiquetas(self, datos_tarjeta):
         self.tipoTarjeta.setText(datos_tarjeta['profile_name'])
@@ -1287,7 +1671,6 @@ QPushButton:pressed, QPushButton:checked {
     def handle_recarga_ok(self):
         monto = self.obtener_monto_seleccionado()
         correo = self.CorreoEdit.toPlainText()
-        
         if monto == "0":
             self.mensaje_advertencia()
         elif not correo:
@@ -1701,5 +2084,17 @@ QPushButton:pressed, QPushButton:checked {
             self.Correo.setGeometry(QRect(700, 797.3, 253.4, 23.8))
             self.IconoCorreo.setGeometry(QRect(550, 313, 58, 48))
             
-  
-    # retranslateUi
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+           

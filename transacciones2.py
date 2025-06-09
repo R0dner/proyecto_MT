@@ -136,7 +136,6 @@ class Ui_MainWindow(object):
             self.nfc_monitor.show_auto_close_message("Se ha retirado la tarjeta\nCerrando ventanas...")
 
     def show_error_message(self, message):
-        # Mostrar mensaje de error sin botón OK
         self.nfc_monitor.show_auto_close_message(message)
 
     def setupUi(self, MainWindow):
