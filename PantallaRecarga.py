@@ -12,7 +12,6 @@ import re
 from datos_qr import solicitar_recarga
 from nfc_monitor import NFCMonitorSingleton
 
-
 class VirtualKeyboard(QDialog):
     def __init__(self, parent=None, target_widget=None):
         super().__init__(parent)
@@ -1655,6 +1654,7 @@ QPushButton:pressed, QPushButton:checked {
         dialog.close()
         self.apply_blur_effect(self.centralwidget)
 
+        # Aquí asumo que solicitar_recarga() devuelve algún indicador de éxito
         result = solicitar_recarga(
             uid, 
             numero_ci, 
@@ -1664,9 +1664,25 @@ QPushButton:pressed, QPushButton:checked {
             monto, 
             self.centralwidget
         )
+        
         self.remove_blur_effect(self.centralwidget)
         
+        if result:  # Si el pago fue exitoso
+            self.show_payment_confirmation()
+        
         return result
+    
+    def show_payment_confirmation(self):
+        msg_box = QMessageBox(self.MainWindow)
+        msg_box.setWindowTitle("Pago Confirmado")
+        msg_box.setText("Gracias por confirmar tu pago. El proceso de recarga se completará en breves momentos.")
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        
+        # Conectar el botón OK para cerrar la ventana principal
+        ok_button = msg_box.button(QMessageBox.Ok)
+        ok_button.clicked.connect(self.MainWindow.close)
+        
+        msg_box.exec_()
 
     def handle_recarga_ok(self):
         monto = self.obtener_monto_seleccionado()
@@ -2082,19 +2098,4 @@ QPushButton:pressed, QPushButton:checked {
             self.RazonSocialEdit.setGeometry(QRect(696, 725.9, 365, 47))
             self.IconoRazonSoc.setGeometry(QRect(550, 203, 58, 48))
             self.Correo.setGeometry(QRect(700, 797.3, 253.4, 23.8))
-            self.IconoCorreo.setGeometry(QRect(550, 313, 58, 48))
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-           
+            self.IconoCorreo.setGeometry(QRect(550, 313, 58, 48))     
