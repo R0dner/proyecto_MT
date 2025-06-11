@@ -183,7 +183,7 @@ class Ui_MainWindow(object):
             self.media_player.play()
             print(f"Reproduciendo video: {video_path}")
         else:
-            print(f"Error: El archivo de video no existe: {video_path}")
+            print(f"Error: El archivo de video no existe: {video_path}")    
             self.play_next_video()
 
     def check_video_status(self):

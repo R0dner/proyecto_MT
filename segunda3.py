@@ -724,7 +724,6 @@ class Ui_MainWindow3(QObject):
     # setupUi
 
     def handle_card_removed(self):
-        """Manejar el evento de retiro de tarjeta"""
         # Cerrar ventanas adicionales si están abiertas
         if hasattr(self, 'ventana_recarga') and self.ventana_recarga:
             self.ventana_recarga.close()

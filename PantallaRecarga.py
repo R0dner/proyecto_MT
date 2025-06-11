@@ -7,6 +7,10 @@ from PySide2.QtGui import QPainter, QPixmap, QColor, QPen
 from PySide2.QtCore import QByteArray, Qt, QRectF
 from PySide2.QtWidgets import QGraphicsBlurEffect
 from PySide2.QtCore import QPropertyAnimation
+from PySide2.QtCore import QTimer, Qt
+from PySide2.QtWidgets import (QDialog, QVBoxLayout, QFrame, QLabel, QProgressBar, 
+                               QApplication, QGraphicsDropShadowEffect, QGraphicsOpacityEffect)
+from PySide2.QtGui import QColor
 import os
 import re
 from datos_qr import solicitar_recarga
@@ -1653,8 +1657,6 @@ QPushButton:pressed, QPushButton:checked {
     def procesar_recarga(self, dialog, uid, numero_ci, razon_social, complemento, correo, monto):
         dialog.close()
         self.apply_blur_effect(self.centralwidget)
-
-        # Aquí asumo que solicitar_recarga() devuelve algún indicador de éxito
         result = solicitar_recarga(
             uid, 
             numero_ci, 
@@ -1667,22 +1669,212 @@ QPushButton:pressed, QPushButton:checked {
         
         self.remove_blur_effect(self.centralwidget)
         
-        if result:  # Si el pago fue exitoso
+        if result:  
             self.show_payment_confirmation()
         
         return result
-    
+        
     def show_payment_confirmation(self):
-        msg_box = QMessageBox(self.MainWindow)
-        msg_box.setWindowTitle("Pago Confirmado")
-        msg_box.setText("Gracias por confirmar tu pago. El proceso de recarga se completará en breves momentos.")
-        msg_box.setStandardButtons(QMessageBox.Ok)
-        
-        # Conectar el botón OK para cerrar la ventana principal
-        ok_button = msg_box.button(QMessageBox.Ok)
-        ok_button.clicked.connect(self.MainWindow.close)
-        
-        msg_box.exec_()
+            self.apply_blur_effect(self.centralwidget)
+
+            dialog = QDialog(self.MainWindow)
+            dialog.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+            dialog.setModal(True)
+            dialog.setFixedSize(500, 420)
+            
+            parent_geometry = self.MainWindow.geometry()
+            x = parent_geometry.x() + (parent_geometry.width() - 500) // 2
+            y = parent_geometry.y() + (parent_geometry.height() - 420) // 2
+
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+
+            main_frame = QFrame()
+            main_frame.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                            stop:0 #f8f9fa, stop:1 #e9ecef);
+                    border-radius: 24px;
+                    border: 1px solid #dee2e6;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
+            """)
+            layout.addWidget(main_frame)
+            frame_layout = QVBoxLayout(main_frame)
+            frame_layout.setContentsMargins(50, 50, 50, 50)
+            frame_layout.setSpacing(30)
+
+            icon_container = QFrame()
+            icon_container.setFixedSize(100, 100)
+            icon_container.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                            stop:0 #4CAF50, stop:1 #45a049);
+                    border-radius: 50px;
+                    border: none;
+                }
+            """)
+
+            icon_layout = QVBoxLayout(icon_container)
+            icon_layout.setContentsMargins(0, 0, 0, 0)
+
+            icon_label = QLabel("✓")
+            icon_label.setAlignment(Qt.AlignCenter)
+            icon_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 48px;
+                    font-weight: bold;
+                    background: none;
+                    border: none;
+                }
+            """)
+            icon_layout.addWidget(icon_label)
+            
+            icon_center_layout = QHBoxLayout()
+            icon_center_layout.addStretch()
+            icon_center_layout.addWidget(icon_container)
+            icon_center_layout.addStretch()
+            frame_layout.addLayout(icon_center_layout)
+
+            title_label = QLabel("¡Recarga Exitosa!")
+            title_label.setAlignment(Qt.AlignCenter)
+            title_label.setFixedHeight(70)  
+            title_label.setStyleSheet("""
+                QLabel {
+                    color: #2c3e50;
+                    font-size: 34px;
+                    font-weight: 700;
+                    background: none;
+                    border: none;
+                    margin: 5px 0;
+                    font-family: 'Segoe UI', 'Arial', sans-serif;
+                    padding: 8px 0;
+                }
+            """)
+            frame_layout.addWidget(title_label)
+
+            message_label = QLabel("La transaccion se completo correctamete. \nSu saldo esta siendo actualizado.")
+            message_label.setAlignment(Qt.AlignCenter)
+            message_label.setFixedHeight(60)  
+            message_label.setStyleSheet("""
+                QLabel {
+                    color: #6c757d;
+                    font-size: 16px;
+                    background: none;
+                    border: none;
+                    line-height: 26px;
+                    font-family: 'Segoe UI', 'Arial', sans-serif;
+                    font-weight: 400;
+                    padding: 10px 0;
+                }
+            """)
+            frame_layout.addWidget(message_label)
+
+            separator = QFrame()
+            separator.setFrameShape(QFrame.HLine)
+            separator.setFixedHeight(1)
+            separator.setStyleSheet("""
+                QFrame {
+                    background-color: #e9ecef;
+                    border: none;
+                    margin: 15px 40px;
+                }
+            """)
+            frame_layout.addWidget(separator)
+            
+            countdown_label = QLabel("Esta ventana se cerrará en 4 segundos...")
+            countdown_label.setAlignment(Qt.AlignCenter)
+            countdown_label.setFixedHeight(40) 
+            countdown_label.setStyleSheet("""
+                QLabel {
+                    color: #868e96;
+                    font-size: 14px;
+                    background: none;
+                    border: none;
+                    padding: 12px 20px;
+                    border-radius: 20px;
+                    background-color: #f8f9fa;
+                    font-family: 'Segoe UI', 'Arial', sans-serif;
+                    font-weight: 500;
+                }
+            """)
+            frame_layout.addWidget(countdown_label)
+
+            progress_container = QFrame()
+            progress_container.setFixedHeight(8)
+            progress_container.setStyleSheet("""
+                QFrame {
+                    background-color: #e9ecef;
+                    border-radius: 4px;
+                    border: none;
+                    margin: 10px 60px;
+                }
+            """)
+            
+            progress_bar = QProgressBar(progress_container)
+            progress_bar.setRange(0, 4)
+            progress_bar.setValue(0)
+            progress_bar.setFixedHeight(8)
+            progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: none;
+                    border-radius: 4px;
+                    background-color: transparent;
+                    text-align: center;
+                }
+                QProgressBar::chunk {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                            stop:0 #4CAF50, stop:1 #45a049);
+                    border-radius: 4px;
+                }
+            """)
+            
+            progress_layout = QHBoxLayout(progress_container)
+            progress_layout.setContentsMargins(0, 0, 0, 0)
+            progress_layout.addWidget(progress_bar)
+            
+            frame_layout.addWidget(progress_container)
+
+            shadow_effect = QGraphicsDropShadowEffect()
+            shadow_effect.setBlurRadius(30)
+            shadow_effect.setXOffset(0)
+            shadow_effect.setYOffset(8)
+            shadow_effect.setColor(QColor(0, 0, 0, 80))
+            dialog.setGraphicsEffect(shadow_effect)
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+
+            self.countdown_timer = QTimer()
+            self.countdown_seconds = 4
+            
+            def update_countdown():
+                if self.countdown_seconds > 0:
+                    countdown_label.setText(f"Esta ventana se cerrará en {self.countdown_seconds} segundos...")
+                    progress_bar.setValue(4 - self.countdown_seconds)
+                    self.countdown_seconds -= 1
+                else:
+                    self.countdown_timer.stop()
+                    dialog.close()
+                    self.remove_blur_effect(self.centralwidget)
+                    self.MainWindow.close()
+            
+            self.countdown_timer.timeout.connect(update_countdown)
+            self.countdown_timer.start(1000)
+
+            self.auto_close_timer = QTimer()
+            self.auto_close_timer.setSingleShot(True)
+            
+            def close_dialog_and_window():
+                dialog.close()
+                self.remove_blur_effect(self.centralwidget)
+                self.MainWindow.close()
+            
+            self.auto_close_timer.timeout.connect(close_dialog_and_window)
+            self.auto_close_timer.start(4000)
+            self.loading_dialog = dialog
 
     def handle_recarga_ok(self):
         monto = self.obtener_monto_seleccionado()

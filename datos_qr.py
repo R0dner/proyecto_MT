@@ -509,7 +509,7 @@ class QRRechargeDialog(QDialog):
         for widget in app.topLevelWidgets():
             if isinstance(widget,QMainWindow):
                 widget.close()
-                break 
+                break
     
     def check_qr_status(self):
         if not hasattr(self, 'wait_counter'):
