@@ -455,7 +455,7 @@ class QRRechargeDialog(QDialog):
                 background-color: #34495E;
             }
         """)
-        close_button.clicked.connect(self.accept)
+        close_button.clicked.connect(self.reject)
         
         buttons_layout.addWidget(payment_done_button)
         buttons_layout.addWidget(close_button)
@@ -493,16 +493,8 @@ class QRRechargeDialog(QDialog):
         self.qr_container.setPixmap(scaled_pixmap)
     
     def payment_completed(self):
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Pago Confirmado")
-        msg_box.setText("Gracias por confirmar tu pago. El proceso de recarga se completará en breves momentos.")
-        msg_box.setStandardButtons(QMessageBox.Ok)  
-        
-        ok_button = msg_box.button(QMessageBox.Ok)
-        ok_button.clicked.connect(lambda: self.close_main_window())
-        
-        msg_box.exec_()
         self.accept()
+
 
     def close_main_window(self):
         app = QApplication.instance()
@@ -566,7 +558,10 @@ def solicitar_recarga(uid="", documento="", razon_social="", complemento="", cor
         
         if success:
             dialog = QRRechargeDialog(datos_manager, parent_widget)
-            return dialog.exec_()
+            result = dialog.exec_()
+            
+            # Solo retornar True si se cerró con Accept (botón "Ya realicé el pago")
+            return result == QDialog.Accepted
         else:
             QMessageBox.critical(
                 parent_widget,

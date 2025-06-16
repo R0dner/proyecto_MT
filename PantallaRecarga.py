@@ -1670,7 +1670,7 @@ QPushButton:pressed, QPushButton:checked {
         )
         
         self.remove_blur_effect(self.centralwidget)
-        
+
         if result:  
             self.show_payment_confirmation()
         
@@ -1740,7 +1740,7 @@ QPushButton:pressed, QPushButton:checked {
             icon_center_layout.addStretch()
             frame_layout.addLayout(icon_center_layout)
 
-            title_label = QLabel("¡Recarga Exitosa!")
+            title_label = QLabel("¡Recarga Procesada!")
             title_label.setAlignment(Qt.AlignCenter)
             title_label.setFixedHeight(70)  
             title_label.setStyleSheet("""
