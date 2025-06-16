@@ -15,6 +15,8 @@ import os
 import re
 from datos_qr import solicitar_recarga
 from nfc_monitor import NFCMonitorSingleton
+from estilos_generales import (ENCABEZADO_COLOR_PRIMARIO,BOTONES_ACCIONES,
+                               BOTONES_ACCIONES_HOVER,BOTONES_ACCIONES_PRESSED,GRADIENTE_INICIO,GRADIENTE_FINAL)
 
 class VirtualKeyboard(QDialog):
     def __init__(self, parent=None, target_widget=None):
@@ -440,12 +442,12 @@ class Ui_Recarga(QObject):
         self.encabezado = QFrame(self.fondoRecarga)
         self.encabezado.setObjectName(u"encabezado")
         self.encabezado.setGeometry(QRect(20, 20, 1240, 65))
-        self.encabezado.setStyleSheet(u"""
-            QFrame#encabezado {
-                background-color: #2C3E50;
+        self.encabezado.setStyleSheet(f"""
+            QFrame#encabezado {{
+                background-color: {ENCABEZADO_COLOR_PRIMARIO};
                 border-bottom-left-radius: 30px;
                 border-bottom-right-radius: 30px;
-            }
+            }}
         """)
         self.encabezado.setFrameShape(QFrame.StyledPanel)
         self.encabezado.setFrameShadow(QFrame.Raised)
@@ -585,13 +587,13 @@ class Ui_Recarga(QObject):
         self.tarjeta = QWidget(self.fondoRecarga)
         self.tarjeta.setObjectName(u"tarjeta")
         self.tarjeta.setGeometry(QRect(640, 110, 550, 200))
-        self.tarjeta.setStyleSheet("""
-    QWidget#tarjeta {
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                    stop:0 #2C3E50, stop:1 #34495e);
+        self.tarjeta.setStyleSheet(f"""
+    QWidget#tarjeta {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, 
+                                            stop: 0 {GRADIENTE_INICIO}, stop: 1 {GRADIENTE_FINAL});
         border-radius: 15px;
         color: white;
-    }
+    }}
 """)
         
         self.IconoLogo = QLabel(self.tarjeta)
@@ -1271,9 +1273,9 @@ QPushButton:pressed, QPushButton:checked {
         self.recargaOk = QPushButton(self.fondoRecarga)
         self.recargaOk.setObjectName(u"recarga")
         self.recargaOk.setGeometry(QRect(675, 940, 323, 61))      
-        self.recargaOk.setStyleSheet(u"""
-            QPushButton {
-                background-color: #2C3E50;  
+        self.recargaOk.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BOTONES_ACCIONES};  
                 color: #FFFFFF;            
                 border: none;               
                 border-radius: 25px;        
@@ -1284,19 +1286,19 @@ QPushButton:pressed, QPushButton:checked {
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); 
                 transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s; 
                 cursor: pointer;           
-            }
+            }}
 
-            QPushButton:hover {
-                background-color: #34495E; 
+            QPushButton:hover {{
+                background-color: {BOTONES_ACCIONES_HOVER}; 
                 transform: translateY(-3px); 
                 box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); 
-            }
+            }}
 
-            QPushButton:pressed {
-                background-color: #1ABC9C;   
+            QPushButton:pressed {{
+                background-color: {BOTONES_ACCIONES_PRESSED};   
                 transform: translateY(1px);   
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-            }
+            }}
         """)
         self.recargaOk.clicked.connect(self.handle_recarga_ok)
         

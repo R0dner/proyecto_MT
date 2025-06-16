@@ -9,15 +9,15 @@ from smartcard.Exceptions import CardConnectionException
 from PySide2.QtWidgets import *
 from PySide2.QtGui import QPixmap
 from NFCHandler import Lectura
-
+from estilos_generales import (ENCABEZADO_COLOR_PRIMARIO,BOTONES_ACCIONES,
+                               BOTONES_ACCIONES_HOVER,BOTONES_ACCIONES_PRESSED,GRADIENTE_INICIO,GRADIENTE_FINAL)
 
 class Ui_Movimientos(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        # Dimensiones principales - Nueva resolución 1937x1100
-        MainWindow.resize(1937, 1100)
-        MainWindow.setFixedSize(1937, 1100)
+        MainWindow.resize(1280, 1024)
+        MainWindow.setFixedSize(1280, 1024)
         MainWindow.setWindowFlags(Qt.FramelessWindowHint)
         
         self.centralwidget = QWidget(MainWindow)
@@ -61,8 +61,8 @@ class Ui_Movimientos(object):
         self.movimientos.setHorizontalHeaderItem(6, __qtablewidgetitem6)
         __qtablewidgetitem7 = QTableWidgetItem()
         self.movimientos.setHorizontalHeaderItem(7, __qtablewidgetitem7)
-        if (self.movimientos.rowCount() < 20):
-            self.movimientos.setRowCount(20)
+        if (self.movimientos.rowCount() < 15):
+            self.movimientos.setRowCount(15)
         __qtablewidgetitem8 = QTableWidgetItem()
         self.movimientos.setVerticalHeaderItem(0, __qtablewidgetitem8)
         __qtablewidgetitem9= QTableWidgetItem()
@@ -94,21 +94,12 @@ class Ui_Movimientos(object):
         __qtablewidgetitem22 = QTableWidgetItem()
         self.movimientos.setVerticalHeaderItem(14, __qtablewidgetitem22)
         __qtablewidgetitem23 = QTableWidgetItem()
-        self.movimientos.setVerticalHeaderItem(15, __qtablewidgetitem23)
-        __qtablewidgetitem24 = QTableWidgetItem()
-        self.movimientos.setVerticalHeaderItem(16, __qtablewidgetitem24)
-        __qtablewidgetitem25 = QTableWidgetItem()
-        self.movimientos.setVerticalHeaderItem(17, __qtablewidgetitem25)
-        __qtablewidgetitem26 = QTableWidgetItem()
-        self.movimientos.setVerticalHeaderItem(18, __qtablewidgetitem26)
-        __qtablewidgetitem27 = QTableWidgetItem()
-        self.movimientos.setVerticalHeaderItem(19, __qtablewidgetitem27)
-        __qtablewidgetitem28 = QTableWidgetItem()
-        __qtablewidgetitem28.setFlags(Qt.ItemIsSelectable|Qt.ItemIsDragEnabled|Qt.ItemIsDropEnabled|Qt.ItemIsUserCheckable|Qt.ItemIsEnabled);
-        self.movimientos.setItem(0, 0, __qtablewidgetitem26)
+
+        __qtablewidgetitem23.setFlags(Qt.ItemIsSelectable|Qt.ItemIsDragEnabled|Qt.ItemIsDropEnabled|Qt.ItemIsUserCheckable|Qt.ItemIsEnabled);
+        self.movimientos.setItem(0, 0, __qtablewidgetitem23)
         self.movimientos.setObjectName(u"movimientos")
         self.movimientos.setGeometry(QRect(45, 35, int(1080/1280*1280), int(478/1024*1024)))
-        self.movimientos.setRowCount(20)
+        self.movimientos.setRowCount(15)
         self.movimientos.setColumnCount(8)
         altura_fila = int((self.movimientos.height() - self.movimientos.horizontalHeader().height()) / 8)
         for i in range(40):
@@ -277,13 +268,13 @@ class Ui_Movimientos(object):
         self.tarjeta = QWidget(self.fondoUltimosMov)
         self.tarjeta.setObjectName(u"tarjeta")
         self.tarjeta.setGeometry(QRect(370, 120, 550, 250))
-        self.tarjeta.setStyleSheet("""
-    QWidget#tarjeta {
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                    stop:0 #2C3E50, stop:1 #34495e);
+        self.tarjeta.setStyleSheet(f"""
+    QWidget#tarjeta {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, 
+                                            stop: 0 {GRADIENTE_INICIO}, stop: 1 {GRADIENTE_FINAL});
         border-radius: 15px;
         color: white;
-    }
+    }}
 """)
         
         self.IconoLogo = QLabel(self.tarjeta)
@@ -402,17 +393,19 @@ class Ui_Movimientos(object):
         self.encabezado = QFrame(self.fondoUltimosMov)
         self.encabezado.setObjectName(u"encabezado")
         self.encabezado.setGeometry(QRect(0, 20, 1280, 80))
-        self.encabezado.setStyleSheet(u"QFrame#encabezado {\n"
-"    background-color: #2C3E50;\n"
-"    border: none;\n"
-"    border-radius: 20px; \n"
-"    padding: 15px; \n"
-"    color: #FFFFFF; \n"
-"    font-family: 'Segoe UI', sans-serif; \n"
-"    font-size: 20px;\n"
-"    font-weight: bold;\n"
-"    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); \n"
-"}")
+        self.encabezado.setStyleSheet(f"""
+            QFrame#encabezado {{
+                background-color: {ENCABEZADO_COLOR_PRIMARIO};
+                border: none;
+                border-radius: 20px;
+                padding: 15px;
+                color: #FFFFFF;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 20px;
+                font-weight: bold;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }}
+        """)
         self.encabezado.setFrameShape(QFrame.StyledPanel)
         self.encabezado.setFrameShadow(QFrame.Raised)
         
@@ -436,9 +429,9 @@ class Ui_Movimientos(object):
         self.atras.setObjectName(u"atras")
         self.atras.setGeometry(QRect(540, 930, 220, 50))
         self.atras.clicked.connect(MainWindow.close)
-        self.atras.setStyleSheet(u"""
-            QPushButton {
-                background-color: #2C3E50;  
+        self.atras.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BOTONES_ACCIONES};  
                 color: #FFFFFF;            
                 border: none;               
                 border-radius: 25px;        
@@ -449,19 +442,19 @@ class Ui_Movimientos(object):
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); 
                 transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s; 
                 cursor: pointer;           
-            }
+            }}
 
-            QPushButton:hover {
-                background-color: #34495E; 
+            QPushButton:hover {{
+                background-color: {BOTONES_ACCIONES_HOVER}; 
                 transform: translateY(-3px); 
                 box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); 
-            }
+            }}
 
-            QPushButton:pressed {
-                background-color: #1ABC9C;   
+            QPushButton:pressed {{
+                background-color: {BOTONES_ACCIONES_PRESSED};   
                 transform: translateY(1px);   
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-            }
+            }}
         """)
         
         self.etiqueta_nombre = self.nombre
@@ -583,16 +576,6 @@ class Ui_Movimientos(object):
         ___qtablewidgetitem21.setText(QCoreApplication.translate("MainWindow", u" 14", None));
         ___qtablewidgetitem22 = self.movimientos.verticalHeaderItem(14)
         ___qtablewidgetitem22.setText(QCoreApplication.translate("MainWindow", u" 15", None));
-        ___qtablewidgetitem23 = self.movimientos.verticalHeaderItem(15)
-        ___qtablewidgetitem23.setText(QCoreApplication.translate("MainWindow", u" 16", None));
-        ___qtablewidgetitem24 = self.movimientos.verticalHeaderItem(16)
-        ___qtablewidgetitem24.setText(QCoreApplication.translate("MainWindow", u" 17", None));
-        ___qtablewidgetitem25 = self.movimientos.verticalHeaderItem(17)
-        ___qtablewidgetitem25.setText(QCoreApplication.translate("MainWindow", u" 18", None));
-        ___qtablewidgetitem26 = self.movimientos.verticalHeaderItem(18)
-        ___qtablewidgetitem26.setText(QCoreApplication.translate("MainWindow", u" 19", None));
-        ___qtablewidgetitem27 = self.movimientos.verticalHeaderItem(19)
-        ___qtablewidgetitem27.setText(QCoreApplication.translate("MainWindow", u" 20", None));
 
         __sortingEnabled = self.movimientos.isSortingEnabled()
         self.movimientos.setSortingEnabled(False)

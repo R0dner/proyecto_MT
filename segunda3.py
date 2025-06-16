@@ -20,6 +20,8 @@ from PySide2.QtWidgets import QMainWindow
 from PySide2.QtCore import QPropertyAnimation, QEasingCurve, QSequentialAnimationGroup
 from PySide2.QtGui import QPainter, QPixmap
 from nfc_monitor import NFCMonitorSingleton
+from estilos_generales import (ENCABEZADO_COLOR_PRIMARIO,BOTONES_ACCIONES,BOTONES_ACCIONES_HOVER,
+                               BOTONES_ACCIONES_PRESSED,GRADIENTE_FINAL,GRADIENTE_INICIO)
 
 class CustomMessageDialog(QDialog):
     def __init__(self, parent=None):
@@ -267,13 +269,14 @@ class Ui_MainWindow3(QObject):
         self.encabezado = QFrame(self.fondoSegunda)
         self.encabezado.setObjectName(u"encabezado")
         self.encabezado.setGeometry(QRect(20, 20, 1240, 80))
-        self.encabezado.setStyleSheet(u"""
-            QFrame#encabezado {
-                background-color: #2C3E50;
+        self.encabezado.setStyleSheet(f"""
+            QFrame#encabezado {{
+                background-color: {ENCABEZADO_COLOR_PRIMARIO};
                 border-bottom-left-radius: 30px;
                 border-bottom-right-radius: 30px;
-            }
+            }}
         """)
+        #66999B 124661 color sugerido
         self.encabezado.setFrameShape(QFrame.StyledPanel)
         self.encabezado.setFrameShadow(QFrame.Raised)
        
@@ -303,19 +306,19 @@ class Ui_MainWindow3(QObject):
         
         self.encabezadoBotones = QFrame(self.fondoSegunda)
         self.encabezadoBotones.setObjectName(u"encabezadoBotones")
-        self.encabezadoBotones.setGeometry(QRect(380, 540, 560, 70))
-        self.encabezadoBotones.setStyleSheet(u"""
-            QFrame#encabezadoBotones {
-                background-color: #2C3E50;
+        self.encabezadoBotones.setGeometry(QRect(20, 540, 1250, 70))
+        self.encabezadoBotones.setStyleSheet(F"""
+            QFrame#encabezadoBotones {{
+                background-color: {ENCABEZADO_COLOR_PRIMARIO};
                 border-radius: 30px;
-            }
+            }}
         """)
         self.encabezadoBotones.setFrameShape(QFrame.StyledPanel)
         self.encabezadoBotones.setFrameShadow(QFrame.Raised)
         
         self.tituloBotones = QLabel(self.encabezadoBotones)
         self.tituloBotones.setObjectName(u"tituloBotones")
-        self.tituloBotones.setGeometry(QRect(0, 0, 560, 70))
+        self.tituloBotones.setGeometry(QRect(0, 0,1250, 70))
         self.tituloBotones.setStyleSheet(u"""
             QLabel#tituloBotones {
                 color: #ECF0F1; 
@@ -340,9 +343,9 @@ class Ui_MainWindow3(QObject):
         self.Umovimientos = QPushButton(self.fondoBotones)
         self.Umovimientos.setObjectName(u"Umovimientos")
         self.Umovimientos.setGeometry(QRect(150, 70, 380, 80))
-        self.Umovimientos.setStyleSheet(u"""
-            QPushButton {
-                background-color: #2C3E50;  
+        self.Umovimientos.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BOTONES_ACCIONES};  
                 color: #FFFFFF;            
                 border: none;               
                 border-radius: 25px;        
@@ -353,19 +356,19 @@ class Ui_MainWindow3(QObject):
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); 
                 transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s; 
                 cursor: pointer;           
-            }
+            }}
 
-            QPushButton:hover {
-                background-color: #34495E; 
+            QPushButton:hover {{
+                background-color: {BOTONES_ACCIONES_HOVER}; 
                 transform: translateY(-3px); 
                 box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); 
-            }
+            }}
 
-            QPushButton:pressed {
-                background-color: #1ABC9C;   
+            QPushButton:pressed {{
+                background-color: {BOTONES_ACCIONES_PRESSED};   
                 transform: translateY(1px);   
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-            }
+            }}
         """)
         self.Umovimientos.clicked.connect(self.mostrar_ventana_movimientos)
         
@@ -379,9 +382,9 @@ class Ui_MainWindow3(QObject):
         self.RecargaCredito = QPushButton(self.fondoBotones)
         self.RecargaCredito.setObjectName(u"RecargaCredito")
         self.RecargaCredito.setGeometry(QRect(700, 70, 300, 80))
-        self.RecargaCredito.setStyleSheet(u"""
-            QPushButton {
-                background-color: #2C3E50;  
+        self.RecargaCredito.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BOTONES_ACCIONES};  
                 color: #FFFFFF;            
                 border: none;               
                 border-radius: 25px;        
@@ -392,19 +395,19 @@ class Ui_MainWindow3(QObject):
                 box-shadow: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
                 transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s; 
                 cursor: pointer;           
-            }
+            }}
 
-            QPushButton:hover {
-                background-color: #34495E; 
+            QPushButton:hover {{
+                background-color: {BOTONES_ACCIONES_HOVER}; 
                 transform: translateY(-3px); 
                 box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); 
-            }
+            }}
 
-            QPushButton:pressed {
-                background-color: #1ABC9C;   
+            QPushButton:pressed {{
+                background-color: {BOTONES_ACCIONES_PRESSED};   
                 transform: translateY(1px);   
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-            }
+            }}
         """)
         self.RecargaCredito.clicked.connect(self.verificar_estado_tarjeta)
         
@@ -412,9 +415,9 @@ class Ui_MainWindow3(QObject):
         self.salir.setObjectName(u"salir")
         self.salir.setGeometry(QRect(700, 200, 300, 80))
         self.salir.setLayoutDirection(Qt.LeftToRight)
-        self.salir.setStyleSheet(u"""
-            QPushButton {
-                background-color: #2C3E50;  
+        self.salir.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BOTONES_ACCIONES};  
                 color: #FFFFFF;            
                 border: none;               
                 border-radius: 25px;        
@@ -425,19 +428,19 @@ class Ui_MainWindow3(QObject):
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); 
                 transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s; 
                 cursor: pointer;           
-            }
+            }}
 
-            QPushButton:hover {
-                background-color: #34495E; 
+            QPushButton:hover {{
+                background-color: {BOTONES_ACCIONES_HOVER}; 
                 transform: translateY(-3px); 
                 box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); 
-            }
+            }}
 
-            QPushButton:pressed {
-                background-color: #1ABC9C;   
+            QPushButton:pressed {{
+                background-color: {BOTONES_ACCIONES_PRESSED};   
                 transform: translateY(1px);   
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-            }
+            }}
         """)
         self.MainWindow = MainWindow
         self.salir.clicked.connect(self.mostrar_ventana_despedida)  
@@ -451,9 +454,9 @@ class Ui_MainWindow3(QObject):
         self.actualizar.setGeometry(QRect(150, 200, 380, 80))
         self.actualizar.clicked.connect(self.refresh_window)
         self.actualizar.setLayoutDirection(Qt.LeftToRight)
-        self.actualizar.setStyleSheet(u"""
-            QPushButton {
-                background-color: #2C3E50;  
+        self.actualizar.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BOTONES_ACCIONES};  
                 color: #FFFFFF;            
                 border: none;               
                 border-radius: 25px;        
@@ -464,31 +467,31 @@ class Ui_MainWindow3(QObject):
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); 
                 transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s; 
                 cursor: pointer;           
-            }
+            }}
 
-            QPushButton:hover {
-                background-color: #34495E; 
+            QPushButton:hover {{
+                background-color: {BOTONES_ACCIONES_HOVER}; 
                 transform: translateY(-3px); 
                 box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); 
-            }
+            }}
 
-            QPushButton:pressed {
-                background-color: #1ABC9C;   
+            QPushButton:pressed {{
+                background-color: {BOTONES_ACCIONES_PRESSED};   
                 transform: translateY(1px);   
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-            }
+            }}
         """)
 
         self.tarjeta = QWidget(self.fondoTarjeta)
         self.tarjeta.setObjectName(u"tarjeta")
         self.tarjeta.setGeometry(QRect(665, 85, 470, 270))
-        self.tarjeta.setStyleSheet("""
-            QWidget#tarjeta {
+        self.tarjeta.setStyleSheet(f"""
+            QWidget#tarjeta {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, 
-                                            stop: 0 #2C3E50, stop: 1 #34495E);
+                                            stop: 0 {GRADIENTE_INICIO}, stop: 1 {GRADIENTE_FINAL});
                 border-radius: 20px;
                 border: 1px solid #2980B9; 
-            }
+            }}
         """)       
         
         self.tarjetaInterior = QWidget(self.tarjeta)
@@ -1063,7 +1066,7 @@ class Ui_MainWindow3(QObject):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
         self.titulo.setText(QCoreApplication.translate("MainWindow", u" ", None))
         self.tituloSaldo.setText(QCoreApplication.translate("MainWindow", u" SALDO ACTUAL", None))
-        self.tituloBotones.setText(QCoreApplication.translate("MainWindow", u" Opciones", None))
+        self.tituloBotones.setText(QCoreApplication.translate("MainWindow", u" OPCIONES", None))
         self.Umovimientos.setText(QCoreApplication.translate("MainWindow", u"   Movimientos", None))
         self.RecargaCredito.setText(QCoreApplication.translate("MainWindow", u"  Recarga Credito", None))
         self.salir.setText(QCoreApplication.translate("MainWindow", u"  Salir", None))
