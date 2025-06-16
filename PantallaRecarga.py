@@ -2102,7 +2102,7 @@ QPushButton:pressed, QPushButton:checked {
 
     def obtener_monto_seleccionado(self):
         if self.monto1.isChecked():
-            return "5"
+            return "1"
         elif self.monto2.isChecked():
             return "10"
         elif self.monto3.isChecked():
@@ -2176,7 +2176,7 @@ QPushButton:pressed, QPushButton:checked {
         self.monedaSaldo.setText(QCoreApplication.translate("MainWindow", u" Bs ", None))
         self.pasoTituloMontos.setText(QCoreApplication.translate("MainWindow", u"1", None))
         self.tituloMontos.setText(QCoreApplication.translate("MainWindow", u"Elige el monto de tu recarga", None))
-        self.monto1.setText(QCoreApplication.translate("MainWindow", u"Bs \n 5 ", None))
+        self.monto1.setText(QCoreApplication.translate("MainWindow", u"Bs \n 1 ", None))
         self.monto2.setText(QCoreApplication.translate("MainWindow", u"Bs \n 10 ", None))
         self.monto3.setText(QCoreApplication.translate("MainWindow", u"Bs \n 20 ", None))
         self.monto4.setText(QCoreApplication.translate("MainWindow", u"Bs \n 30 ", None))

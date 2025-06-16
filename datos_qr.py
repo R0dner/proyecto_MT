@@ -559,8 +559,7 @@ def solicitar_recarga(uid="", documento="", razon_social="", complemento="", cor
         if success:
             dialog = QRRechargeDialog(datos_manager, parent_widget)
             result = dialog.exec_()
-            
-            # Solo retornar True si se cerró con Accept (botón "Ya realicé el pago")
+        
             return result == QDialog.Accepted
         else:
             QMessageBox.critical(

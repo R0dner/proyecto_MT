@@ -804,13 +804,11 @@ class Ui_MainWindow3(QObject):
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
             }}
         """)
-        
-        # Crear layout para el mensaje e icono
+
         layout = QHBoxLayout(msg)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
-        
-        # Añadir icono SVG si corresponde
+
         if svg_icon:
             icon_label = QLabel()
             renderer = QSvgRenderer(QByteArray(svg_icon.encode('utf-8')))
@@ -821,19 +819,16 @@ class Ui_MainWindow3(QObject):
             painter.end()
             icon_label.setPixmap(pixmap)
             layout.addWidget(icon_label)
-        
-        # Añadir texto del mensaje
+
         text_label = QLabel(mensaje)
         text_label.setStyleSheet("color: white; font-size: 18px;")
         layout.addWidget(text_label)
-        
-        # Posicionar en el centro de la ventana
+
         msg.adjustSize()
         x_pos = (self.centralwidget.width() - msg.width()) // 2
         y_pos = (self.centralwidget.height() - msg.height()) // 2
         msg.move(x_pos, y_pos)
-        
-        # Animación de entrada
+
         msg.setWindowOpacity(0)
         msg.show()
         
@@ -842,21 +837,18 @@ class Ui_MainWindow3(QObject):
         fade_in.setStartValue(0)
         fade_in.setEndValue(1)
         fade_in.setEasingCurve(QEasingCurve.OutCubic)
-        
-        # Animación de salida después de la duración
+
         fade_out = QPropertyAnimation(msg, b"windowOpacity")
         fade_out.setDuration(300)
         fade_out.setStartValue(1)
         fade_out.setEndValue(0)
         fade_out.setEasingCurve(QEasingCurve.InCubic)
-        
-        # Secuencia de animaciones
+
         seq = QSequentialAnimationGroup()
         seq.addAnimation(fade_in)
         seq.addPause(duracion_ms)
         seq.addAnimation(fade_out)
-        
-        # Eliminar el mensaje al finalizar
+
         seq.finished.connect(msg.deleteLater)
         seq.start()
 

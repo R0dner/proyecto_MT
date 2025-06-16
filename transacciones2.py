@@ -99,12 +99,8 @@ class Ui_MainWindow(object):
             os.path.join(video_dir, "promov2.mp4"),
             os.path.join(video_dir, "promov3.mp4")
         ]
-        
-        # Usar el singleton del monitor NFC
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
         self.nfc_monitor.register_carousel(self)
-        
-        # Conectar señales del monitor NFC
         self.nfc_monitor.uid_detected.connect(self.handle_uid_detected)
         self.nfc_monitor.card_error.connect(self.show_error_message)
         self.nfc_monitor.card_removed.connect(self.handle_card_removal)
@@ -127,12 +123,9 @@ class Ui_MainWindow(object):
             self.show_error_message("Tarjeta externa: \n Esta tarjeta no pertenece al sistema")
 
     def handle_card_removal(self):
-        # Solo pausar el video si hay ventanas abiertas además del carrusel
         if hasattr(self, 'saldo_window') and self.saldo_window:
             if self.media_player:
-                self.media_player.play()  # Reanudar el video si estaba pausado
-            
-            # Mostrar mensaje de cierre automático sin botones
+                self.media_player.play()  
             self.nfc_monitor.show_auto_close_message("Se ha retirado la tarjeta\nCerrando ventanas...")
 
     def show_error_message(self, message):
@@ -230,7 +223,6 @@ class Ui_MainWindow(object):
         self.saldo_window.show()
 
     def on_saldo_window_closed(self):
-        # Desregistrar la ventana cuando se cierra
         self.nfc_monitor.unregister_window(self.saldo_window)
         self.saldo_window = None
         self.resume_video()
@@ -286,18 +278,12 @@ class NFCMonitor(QObject):
         self.nfc_reader = NFCReader()
         self.cardmonitor = CardMonitor()
         self.cardmonitor.addObserver(self.nfc_reader)
-        
-        # Conectar señales del lector a las señales del monitor
         self.nfc_reader.uid_detected.connect(self.uid_detected)
         self.nfc_reader.card_error.connect(self.card_error)
         self.nfc_reader.card_removed.connect(self.handle_card_removal)
-        
-        # Lista de ventanas registradas para cerrar
         self.windows_to_close = []
         self.carousel_window = None
         self.error_dialog = None
-        
-        # Estilo para mensajes
         self.message_style = """
             QMessageBox {
                 background-color: #f0f0f0;
@@ -348,11 +334,8 @@ class NFCMonitor(QObject):
         
         self.error_dialog.setGeometry(350, 400, 300, 200)
         self.error_dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
-        
-        # Mostrar el diálogo
         self.error_dialog.show()
-        
-        # Configurar temporizador para cerrar automáticamente después de 3 segundos
+
         QTimer.singleShot(3000, self.close_message_and_windows)
     
     def close_message_and_windows(self):
