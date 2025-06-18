@@ -1,0 +1,12 @@
+{
+    "success": true,
+    "data": {
+        "error": 0,
+        "existente": 0,
+        "mensaje": "Deuda registrada con \u00e9xito. Para completar el pago, debe redireccionar al cliente a la pasarela de pagos.",
+        "codigo_recaudacion": "78519228898",
+        "id_transaccion": "d2a33eab-1a5f-4d17-b324-349b988e822f",
+        "qr_simple_url": "https://pagos.libelula.bo/QrImages/f0b898928af24c9084ecb679c0281a123dab8767aee2445c9d8e11df309350ed.png",
+        "url_pasarela_pagos": "https://pagos.libelula.bo/?id=8b036cab-c44a-4c90-b23c-9a5c711364cb"
+    }
+}

@@ -495,7 +495,6 @@ class QRRechargeDialog(QDialog):
     def payment_completed(self):
         self.accept()
 
-
     def close_main_window(self):
         app = QApplication.instance()
         for widget in app.topLevelWidgets():
