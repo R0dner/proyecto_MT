@@ -128,8 +128,6 @@ class CustomInfoDialog(QDialog):
         content_layout = QVBoxLayout(self.content_frame)
         content_layout.setContentsMargins(30, 30, 30, 30)
         content_layout.setSpacing(20)
-
-        # Configurar icono según el tipo
         icono_label = QLabel()
         icon_size = QSize(72, 72)
         
@@ -139,7 +137,7 @@ class CustomInfoDialog(QDialog):
                 <path fill="#e74c3c" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
             '''
-        else:  # info por defecto
+        else:  
             svg_content = '''
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path fill="#3498db" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
@@ -148,8 +146,6 @@ class CustomInfoDialog(QDialog):
         
         icono_label.setPixmap(self.render_svg(svg_content, icon_size))
         icono_label.setAlignment(Qt.AlignCenter)
-
-        # Mensaje
         mensaje_label = QLabel(mensaje)
         mensaje_label.setAlignment(Qt.AlignCenter)
         mensaje_label.setWordWrap(True)
@@ -162,8 +158,7 @@ class CustomInfoDialog(QDialog):
                 padding: 0 10px;
             }
         """)
-
-        # Botón de cerrar
+        
         close_button = QPushButton("Aceptar")
         close_button.setStyleSheet("""
             QPushButton {
@@ -218,8 +213,6 @@ class CustomInfoDialog(QDialog):
         self.animation.setEndValue(1)
         self.animation.setEasingCurve(QEasingCurve.OutCubic)
         self.animation.start()
-        
-        # Configurar cierre automático si está activado
         if self.auto_close:
             QTimer.singleShot(self.close_time, self.close_with_animation)
 
@@ -724,10 +717,9 @@ class Ui_MainWindow3(QObject):
         self.retranslateUi(MainWindow)
 
         QMetaObject.connectSlotsByName(MainWindow)
-    # setupUi
 
     def handle_card_removed(self):
-        # Cerrar ventanas adicionales si están abiertas
+
         if hasattr(self, 'ventana_recarga') and self.ventana_recarga:
             self.ventana_recarga.close()
             
@@ -764,32 +756,30 @@ class Ui_MainWindow3(QObject):
         self.saldo.setGeometry(QRect(int(new_x), int(new_y), int(new_width), int(new_height)))
 
     def mostrar_mensaje_temporal(self, mensaje, duracion_ms, icono='info'):
-        """Muestra un mensaje flotante temporal con estilo moderno"""
-        # Crear el contenedor del mensaje
+
         msg = QLabel(self.centralwidget)
         msg.setObjectName("mensajeTemporal")
         msg.setAlignment(Qt.AlignCenter)
-        
-        # Estilo según el tipo de icono
+
         if icono == 'error':
-            color_fondo = "#e74c3c"  # Rojo
+            color_fondo = "#e74c3c"  
             svg_icon = '''
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
             '''
         elif icono == 'info':
-            color_fondo = "#3498db"  # Azul
+            color_fondo = "#3498db"  
             svg_icon = '''
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
             </svg>
             '''
         else:
-            color_fondo = "#2C3E50"  # Color principal de la interfaz
+            color_fondo = "#2C3E50"  
             svg_icon = ''
         
-        # Configurar el estilo
+        # Configuracion del estilo
         msg.setStyleSheet(f"""
             QLabel#mensajeTemporal {{
                 background-color: {color_fondo};
@@ -933,6 +923,7 @@ class Ui_MainWindow3(QObject):
         self.ventana_recarga = QMainWindow()
         self.ui_recarga = Ui_Recarga()
         self.ui_recarga.setupUi(self.ventana_recarga)
+        self.ui_recarga.recarga_completada.connect(self.refresh_window)
         self.ventana_recarga.show()
         self.actualizar_etiquetas_recarga()
         self.nfc_monitor.register_window(self.ventana_recarga)

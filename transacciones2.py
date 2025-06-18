@@ -126,7 +126,7 @@ class Ui_MainWindow(object):
         if hasattr(self, 'saldo_window') and self.saldo_window:
             if self.media_player:
                 self.media_player.play()  
-            self.nfc_monitor.show_auto_close_message("Se ha retirado la tarjeta\nCerrando ventanas...")
+            self.nfc_monitor.show_auto_close_message("Se ha retirado la tarjeta\nSe estan limpiando los datos....")
 
     def show_error_message(self, message):
         self.nfc_monitor.show_auto_close_message(message)
@@ -315,14 +315,11 @@ class NFCMonitor(QObject):
     def handle_card_removal(self):
         self.card_removed.emit()
         if len(self.windows_to_close) > 0:
-            self.show_auto_close_message("Se ha retirado la tarjeta\nCerrando ventanas...")
+            self.show_auto_close_message("Se ha retirado la tarjeta\nSe estan limpiando los datos...")
     
     def show_auto_close_message(self, message):
-        # Cerrar diálogo anterior si existe
         if self.error_dialog:
             self.error_dialog.close()
-        
-        # Crear nuevo diálogo sin botones
         self.error_dialog = QMessageBox()
         self.error_dialog.setIcon(QMessageBox.NoIcon)
         self.error_dialog.setStyleSheet(self.message_style)

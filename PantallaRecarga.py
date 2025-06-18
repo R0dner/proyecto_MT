@@ -15,6 +15,7 @@ import os
 import re
 from datos_qr import solicitar_recarga
 from nfc_monitor import NFCMonitorSingleton
+from PySide2.QtCore import Signal
 from estilos_generales import (ENCABEZADO_COLOR_PRIMARIO,BOTONES_ACCIONES,
                                BOTONES_ACCIONES_HOVER,BOTONES_ACCIONES_PRESSED,GRADIENTE_INICIO,GRADIENTE_FINAL)
 
@@ -405,6 +406,7 @@ class CustomTextEdit(QTextEdit):
             self.keyboard.close_keyboard()
             
 class Ui_Recarga(QObject):
+    recarga_completada = Signal()
     def __init__(self):
         super().__init__()
         self.nfc_monitor = NFCMonitorSingleton.get_instance()
@@ -412,7 +414,7 @@ class Ui_Recarga(QObject):
         self.nfc_monitor.card_error.connect(self.show_error_message)
 
     def handle_card_removal(self):
-        self.show_error_message("Se ha retirado la tarjeta\nCerrando ventana de recarga...")
+        self.show_error_message("Se ha retirado la tarjeta\nSe estan limpiando los datos...")
 
     def show_error_message(self, message):          
         # Mostrar mensaje de error con el estilo del monitor NFC
@@ -1872,6 +1874,7 @@ QPushButton:pressed, QPushButton:checked {
             def close_dialog_and_window():
                 dialog.close()
                 self.remove_blur_effect(self.centralwidget)
+                self.recarga_completada.emit()
                 self.MainWindow.close()
             
             self.auto_close_timer.timeout.connect(close_dialog_and_window)

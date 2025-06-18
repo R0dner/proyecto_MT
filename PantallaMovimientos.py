@@ -589,7 +589,7 @@ class Ui_Movimientos(object):
         self.monedaSaldo.setText(QCoreApplication.translate("MainWindow", u" Bs ", None))
         self.titulo.setText(QCoreApplication.translate("MainWindow", u"TUS MOVIMIENTOS MAS RECIENTES", None))
         self.atras.setText(QCoreApplication.translate("MainWindow", u"  ATRAS", None))
-    # retranslateUi
+        
         current_dir = os.path.dirname(os.path.abspath(__file__))
         image_folder = os.path.join(current_dir, 'imagenes2')
 
