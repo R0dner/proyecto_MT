@@ -1457,14 +1457,12 @@ QPushButton:pressed, QPushButton:checked {
             border: 1px solid #CFD8DC;
         }
         """)
-
-        # Configurar el monitor NFC para cerrar la ventana automáticamente
+        
         try:
             from nfc_monitor import NFCMonitorSingleton
             nfc_monitor = NFCMonitorSingleton.get_instance()
             nfc_monitor.register_window(pago_dialog)
-            
-            # Conectar la señal de tarjeta removida para cerrar el diálogo
+
             def close_on_card_removal():
                 print("Confirmation Dialog: Tarjeta removida detectada - Cerrando ventana de confirmación")
                 self.close_dialog_and_remove_blur(pago_dialog)
@@ -1474,7 +1472,6 @@ QPushButton:pressed, QPushButton:checked {
         except Exception as e:
             print(f"Advertencia: No se pudo conectar con el monitor NFC: {e}")
 
-        # Sobrescribir el método closeEvent del diálogo para desregistrar la ventana
         original_close_event = pago_dialog.closeEvent
         def custom_close_event(event):
             try:
@@ -1483,8 +1480,7 @@ QPushButton:pressed, QPushButton:checked {
                     print("Ventana de confirmación desregistrada del monitor NFC")
             except Exception as e:
                 print(f"Error al desregistrar ventana: {e}")
-            
-            # Llamar al método original
+
             original_close_event(event)
         
         pago_dialog.closeEvent = custom_close_event
@@ -1787,7 +1783,7 @@ QPushButton:pressed, QPushButton:checked {
         dialog = QDialog(self.MainWindow)
         dialog.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         dialog.setModal(True)
-        dialog.setFixedSize(500, 420)
+        dialog.setFixedSize(500, 430)
         
         parent_geometry = self.MainWindow.geometry()
         x = parent_geometry.x() + (parent_geometry.width() - 500) // 2
@@ -2224,19 +2220,14 @@ QPushButton:pressed, QPushButton:checked {
             return "0"  
 
     def abrir_qr_con_blur(self, pago_dialog, monto):
-        # Apply blur to the main window instead of the pago_dialog
+
         self.apply_blur_effect(self.centralwidget)
-        
-        # Close the confirmation dialog
         pago_dialog.close()
-        
-        # Create the QR dialog
+
         qr_dialog = pago_dialog(monto, parent=self.centralwidget)
-        
-        # Connect the dialog's close event to remove blur
+
         qr_dialog.finished.connect(lambda: self.remove_blur_effect(self.centralwidget))
-        
-        # Show the QR
+
         qr_dialog.exec_()
 
     def apply_blur_effect(self, widget):

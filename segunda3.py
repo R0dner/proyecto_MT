@@ -960,25 +960,37 @@ class Ui_MainWindow3(QObject):
         try:
             self.actualizar.setEnabled(False)
             self.actualizar.setText("Actualizando...")
-            
-            if hasattr(self.lector_nfc, 'get_card_data'):
-                datos_tarjeta = self.lector_nfc.get_card_data()
-                
-                if datos_tarjeta:
-                    self.actualizar_interfaz(datos_tarjeta)
+
+            if hasattr(self.lector_nfc, 'read_card'):
+                # Limpiar datos existentes
+                with self.lector_nfc.lock:
+                    self.lector_nfc.card_data = None
+                    self.lector_nfc.movements_data = None
+                self.lector_nfc.data_ready.clear()              
+                # Realizar nueva lectura
+                self.lector_nfc.read_card()
+
+                if self.lector_nfc.data_ready.wait(3):  
+                    datos_tarjeta = self.lector_nfc.get_card_data()
                     
-                    if hasattr(self, 'ui_movimientos'):
-                        self.actualizar_etiquetas_movimientos()
-                    if hasattr(self, 'ui_recarga'):
-                        self.actualizar_etiquetas_recarga()
+                    if datos_tarjeta:
+                        self.actualizar_interfaz(datos_tarjeta)
+                        
+                        if hasattr(self, 'ui_movimientos'):
+                            self.actualizar_etiquetas_movimientos()
+                        if hasattr(self, 'ui_recarga'):
+                            self.actualizar_etiquetas_recarga()
+                    else:
+                        self.mostrar_mensaje_temporal("No se pudo leer la tarjeta", 2000, 'error')
                 else:
-                    self.mostrar_mensaje_temporal("No se detectó la tarjeta", 2000)
+                    self.mostrar_mensaje_temporal("Tiempo de espera agotado", 2000, 'error')
             else:
-                print("El lector NFC no tiene el método get_card_data")
-                
+                print("El lector NFC no tiene el método read_card")
+                self.mostrar_mensaje_temporal("Error en el lector NFC", 2000, 'error')
+                    
         except Exception as e:
             print(f"Error al actualizar: {e}")
-            self.mostrar_mensaje_temporal("Error al actualizar", 2000)
+            self.mostrar_mensaje_temporal("Error al actualizar", 2000, 'error')
         finally:
             self.actualizar.setEnabled(True)
             self.actualizar.setText("Actualizar Saldo")

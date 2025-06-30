@@ -169,7 +169,7 @@ class Lectura(CardObserver):
 
 class QRDatosManager:
     def __init__(self):
-        self.base_url = "https://serviciosvirtual-test.miteleferico.bo"
+        self.base_url = "https://serviciosvirtual.miteleferico.bo"
         self.api_url = f"{self.base_url}/api/v1/payment/register-payment-external"
         self.datos_recarga = {}
         self.qr_url = None
@@ -253,12 +253,12 @@ class QRDatosManager:
             print(f"Error al cargar datos de recarga: {e}")
             return False
     
-    def enviar_solicitud(self, max_intentos=3):
+    def enviar_solicitud(self, max_intentos=1):
         for intento in range(1, max_intentos + 1):
             try:
                 if not self.cargar_datos_recarga():
                     return False, "No se pudieron cargar los datos de recarga"
-
+                
                 datos_para_api = {
                     "monto": self.datos_recarga.get("monto", 0),
                     "uid": self.datos_recarga.get("uid", ""),
@@ -269,52 +269,40 @@ class QRDatosManager:
                     "nit": self.datos_recarga.get("nit", ""),
                     "razon_social": self.datos_recarga.get("razon_social", "")
                 }
-
-                headers = {"Content-Type": "application/json"}
                 
+                headers = {"Content-Type": "application/json"}
+                                
                 respuesta = requests.post(
                     self.api_url, 
                     json=datos_para_api, 
                     headers=headers,
-                    timeout=30
+                    timeout=10  
                 )
-
+                
                 if respuesta.status_code == 200:
                     self.api_response = respuesta.json()
-                    
+                                        
                     if self.api_response.get("success") and "data" in self.api_response:
                         data = self.api_response["data"]
                         self.qr_url = data.get("qr_url", data.get("qr_simple_url", ""))
-                        
+                                                
                         with open("ultima_respuesta_api.json", "w") as f:
                             json.dump(self.api_response, f, indent=4)
-                        
+                                                
                         return True, self.qr_url
                     else:
                         return False, "Formato de respuesta de API inesperado"
-                elif respuesta.status_code == 504:
-                    if intento < max_intentos:
-                        tiempo_espera = 2 ** intento
-                        print(f"Error 504 recibido. Reintentando en {tiempo_espera} segundos...")
-                        time.sleep(tiempo_espera)
-                        continue
-                    return False, f"Error 504: Gateway Timeout después de {max_intentos} intentos"
                 else:
                     return False, f"Error {respuesta.status_code}: {respuesta.text}"
-
+                
             except requests.exceptions.Timeout:
-                if intento < max_intentos:
-                    tiempo_espera = 2 ** intento
-                    print(f"Timeout en solicitud. Reintentando en {tiempo_espera} segundos...")
-                    time.sleep(tiempo_espera)
-                    continue
-                return False, f"Error de timeout después de {max_intentos} intentos"
+                return False, "Error de conexión: No se recibió respuesta en 10 segundos"
+            except requests.exceptions.ConnectionError:
+                return False, "Error de conexión: No se pudo conectar al servidor"
+            except requests.exceptions.RequestException as e:
+                return False, f"Error de conexión: {str(e)}"
             except Exception as e:
-                print(f"Error al enviar solicitud (intento {intento}): {e}")
-                if intento < max_intentos:
-                    time.sleep(2 ** intento)
-                    continue
-                return False, str(e)
+                return False, f"Error inesperado: {str(e)}"
     
     def generar_qr_basado_en_respuesta(self):
         try:
